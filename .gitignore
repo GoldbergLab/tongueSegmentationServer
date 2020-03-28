@@ -1,0 +1,8 @@
+# Ignore compiled python files
+/__pycache__/
+# Ignore log files:
+/logs/
+# Ignore neural networks
+/networks/
+# Ignore specific files:
+/TODO.txt
