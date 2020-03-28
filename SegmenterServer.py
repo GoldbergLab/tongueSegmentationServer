@@ -122,15 +122,18 @@ Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</
         response = [
         '''
 <html>
+<head>
+    <link rel="stylesheet" type="text/css" href="main.css">
+</head>
 <body>
-<h1>
-Hello World!
-</h1>
-{form}
-<p>Query = {query}</p>
-<p>Mounts = {mounts}</p>
-<p>Input = {input}</p>
-<p>environ = {environ}</p>
+    <h1>
+        Hello World!
+    </h1>
+    {form}
+    <p>Query = {query}</p>
+    <p>Mounts = {mounts}</p>
+    <p>Input = {input}</p>
+    <p>environ = {environ}</p>
 </body>
 </html>
         '''.format(query=queryString, mounts=mountList, environ=environ, input=postData, form=formText),
