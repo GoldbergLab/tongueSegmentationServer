@@ -96,17 +96,22 @@ class SegmentationServer:
             networkOptionText = self.createOptionList(neuralNetworkList)
             formText = '''
 <form action="/" method="POST">
-    <label for="videoRootMountPoint">Video root mount point:</label><br>
-    <select name="videoRootMountPoint">
-    {mopts}
-    </select>
-    <label for="videoRoot">Video root directory:</label><br>
-    <input type="text" id="videoRoot" name="videoRoot" value=""><br>
-    <label for="networkName">Neural network name:</label><br>
-    <select name="neuralNetwork">
-    {nopts}
-    </select>
-    <input type="text" id="lname" name="lname" value="Doe"><br><br>
+    <div>
+        <label for="videoRootMountPoint">Video root mount point:</label><br>
+        <select name="videoRootMountPoint">
+        {mopts}
+        </select>
+    </div>
+    <div>
+        <label for="videoRoot">Video root directory:</label><br>
+        <input type="text" id="videoRoot" name="videoRoot" value=""><br>
+    </div>
+    <div>
+        <label for="networkName">Neural network name:</label><br>
+        <select name="neuralNetwork">
+        {nopts}
+        </select>
+    </div>
     <input type="submit" value="Submit">
 </form>'''.format(nopts=networkOptionText, mopts=mountOptionsText)
         else:
