@@ -66,9 +66,22 @@ class SegmentationServer:
                 networks.append(item.name)
         return networks
 
+    def createOptionList(self, optionValues, optionNames=None):
+        if optionNames is None:
+            optionNames = optionValues
+        options = []
+        for optionValue, optionName in zip(optionValues, optionNames):
+            options.append('<option value="{v}">{n}</option>'.format(v=optionValue, n=optionName))
+        optionText = "\n".join(options)
+        return optionText
+
     def __call__(self, environ, start_fn):
         neuralNetworkList = self.getNeuralNetworkList()
         mountList = self.getMountList()
+        mountList['Local'] = 'LOCAL'
+        mountURIs = mountList.keys()
+        mountPaths = [mountList[k] for k in mountURIs]
+        mountOptionsText = self.createOptionList(mountPaths, mountURIs)
         start_fn('200 OK', [('Content-Type', 'text/html')])
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
@@ -80,23 +93,22 @@ class SegmentationServer:
         logger.log(logging.INFO, 'Serving page with queryString {queryString}'.format(queryString=queryString))
 
         if len(neuralNetworkList) > 0:
-            networkOptions = []
-            for network in neuralNetworkList:
-                networkOptions.append('<option value="{n}">{n}</option>'.format(n=network))
-            networkOptionText = "\n".join(networkOptions)
+            networkOptionText = self.createOptionList(neuralNetworkList)
             formText = '''
 <form action="/" method="POST">
+    <label for="videoRootMountPoint">Video root mount point:</label><br>
+    <select name="videoRootMountPoint">
+    {mopts}
+    </select>
     <label for="videoRoot">Video root directory:</label><br>
     <input type="text" id="videoRoot" name="videoRoot" value=""><br>
-
     <label for="networkName">Neural network name:</label><br>
     <select name="neuralNetwork">
     {nopts}
     </select>
-
     <input type="text" id="lname" name="lname" value="Doe"><br><br>
     <input type="submit" value="Submit">
-</form>'''.format(nopts=networkOptionText)
+</form>'''.format(nopts=networkOptionText, mopts=mountOptionsText)
         else:
             formText = '''
 <h2>No neural networks found!
