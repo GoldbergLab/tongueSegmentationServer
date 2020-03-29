@@ -9,9 +9,13 @@ import sys
 from subprocess import Popen, PIPE
 import urllib
 from pathlib import Path
+import fnmatch
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
+LOGS_SUBFOLDER = 'logs'
+STATIC_SUBFOLDER = 'static'
+ROOT = '.'
 
 logger = logging.getLogger(__name__)
 
@@ -20,19 +24,29 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 datetimeString = dt.datetime.now().isoformat()
-fh = logging.FileHandler('./logs/{n}_{d}.log'.format(d=datetimeString, n=__name__))
+fh = logging.FileHandler('./{logs}/{n}_{d}.log'.format(d=datetimeString, n=__name__, logs=LOGS_SUBFOLDER))
 fh.setLevel(logging.INFO)
 # create console handler with a higher log level
-ch = logging.StreamHandler(stream=sys.stdout)
-ch.setLevel(logging.INFO)
+# ch = logging.StreamHandler(stream=sys.stdout)
+# ch.setLevel(logging.DEBUG)
 # create formatter and add it to the handlers
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 fh.setFormatter(formatter)
-ch.setFormatter(formatter)
+# ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(fh)
-logger.addHandler(ch)
+# logger.addHandler(ch)
 
+rootPath = Path(ROOT)
+networksFolder = rootPath / NETWORKS_SUBFOLDER
+logsFolder = rootPath / LOGS_SUBFOLDER
+staticFolder = rootPath / STATIC_SUBFOLDER
+requiredSubfolders = [networksFolder, logsFolder, staticFolder]
+for reqFolder in requiredSubfolders:
+    if not reqFolder.exists():
+        reqFolder.mkdir()
+
+# Set environment variables for authentication
 envVars = dict(os.environ)  # or os.environ.copy()
 try:
     envVars['WSGI_AUTH_CREDENTIALS']='glab:password'
@@ -40,9 +54,20 @@ finally:
     os.environ.clear()
     os.environ.update(envVars)
 
+
 class SegmentationServer:
-    def __init__(self):
-        pass
+    def __init__(self, webRoot='.'):
+        self.routes = [
+            ('/static/*',   self.staticHandler),
+            ('/',           self.rootHandler)
+        ]
+        self.webRootPath = Path(webRoot).resolve()
+
+    def __call__(self, environ, start_fn):
+        for path, handler in self.routes:
+            if fnmatch.fnmatch(environ['PATH_INFO'], path):
+                return handler(environ, start_fn)
+        return self.invalidHandler(environ, start_fn)
 
     def getMountList(self):
 #        p = Popen('mount', stdout=PIPE, stderr=PIPE, shell=True)
@@ -53,7 +78,7 @@ class SegmentationServer:
         for mountLine in mountLines:
             elements = mountLine.split(' ')
             mounts[elements[0]] = elements[2]
-        logger.log(logging.INFO, 'Got mount list: ' + str(mounts))
+        logger.log(logging.DEBUG, 'Got mount list: ' + str(mounts))
         return mounts
 
     def getNeuralNetworkList(self):
@@ -75,7 +100,22 @@ class SegmentationServer:
         optionText = "\n".join(options)
         return optionText
 
-    def __call__(self, environ, start_fn):
+    def staticHandler(self, environ, start_fn):
+        requestedStaticFileRelativePath = environ['PATH_INFO'].strip('/')
+        logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
+        requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
+        if requestedStaticFilePath.exists():
+            logger.log(logging.INFO, 'Found that static file')
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            for line in requestedStaticFilePath.open('r'):
+                yield line.encode('utf-8')
+        else:
+            logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return ['<html><body><h1>Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
+
+    def rootHandler(self, environ, start_fn):
+        logger.log(logging.INFO, 'Serving root file')
         neuralNetworkList = self.getNeuralNetworkList()
         mountList = self.getMountList()
         mountList['Local'] = 'LOCAL'
@@ -90,29 +130,27 @@ class SegmentationServer:
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
 
-        logger.log(logging.INFO, 'Serving page with queryString {queryString}'.format(queryString=queryString))
-
         if len(neuralNetworkList) > 0:
             networkOptionText = self.createOptionList(neuralNetworkList)
             formText = '''
 <form action="/" method="POST">
-    <div>
-        <label for="videoRootMountPoint">Video root mount point:</label><br>
-        <select name="videoRootMountPoint">
+    <div class="field-wrap">
+        <label class="field-label" for="videoRootMountPoint">Video root mount point:</label>
+        <select class="field" name="videoRootMountPoint">
         {mopts}
         </select>
     </div>
-    <div>
-        <label for="videoRoot">Video root directory:</label><br>
-        <input type="text" id="videoRoot" name="videoRoot" value=""><br>
+    <div class="field-wrap">
+        <label class="field-label" for="videoRoot">Video root directory:</label>
+        <input class="field" type="text" id="videoRoot" name="videoRoot" value="">
     </div>
-    <div>
-        <label for="networkName">Neural network name:</label><br>
-        <select name="neuralNetwork">
+    <div class="field-wrap">
+        <label class="field-label" for="networkName">Neural network name:</label>
+        <select class="field" name="neuralNetwork">
         {nopts}
         </select>
     </div>
-    <input type="submit" value="Submit">
+    <input class="field" type="submit" value="Submit">
 </form>'''.format(nopts=networkOptionText, mopts=mountOptionsText)
         else:
             formText = '''
@@ -123,7 +161,7 @@ Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</
         '''
 <html>
 <head>
-    <link rel="stylesheet" type="text/css" href="main.css">
+    <link rel="stylesheet" type="text/css" href="static/main.css">
 </head>
 <body>
     <h1>
@@ -133,17 +171,24 @@ Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</
     <p>Query = {query}</p>
     <p>Mounts = {mounts}</p>
     <p>Input = {input}</p>
+    <p>Path = {path}</p>
     <p>environ = {environ}</p>
 </body>
 </html>
-        '''.format(query=queryString, mounts=mountList, environ=environ, input=postData, form=formText),
+        '''.format(query=queryString, mounts=mountList, environ=environ, input=postData, form=formText, path=environ['PATH_INFO']),
         ]
         response = [line.encode('utf-8') for line in response]
         return response
 
+    def invalidHandler(self, environ, start_fn):
+        logger.log(logging.INFO, 'Serving invalid warning')
+        requestedPath = environ['PATH_INFO']
+        start_fn('404 Not Found', [('Content-Type', 'text/html')])
+        return ['<html><body><h1>Path {name} not recognized!</body></html>'.format(name=requestedPath).encode('utf-8')]
+
 logger.log(logging.INFO, 'Spinning up server!')
 while True:
-    s = SegmentationServer()
+    s = SegmentationServer(webRoot=ROOT)
     application = BasicAuth(s)
     try:
         logger.log(logging.INFO, 'Starting segmentation server...')
