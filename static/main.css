@@ -1,0 +1,13 @@
+label.field-label {
+  display: inline-block;
+  text-align: right;
+  width:140px;
+}
+
+.field {
+  vertical-align: center;
+  display: inline;
+}
+
+.field-wrap {
+}
