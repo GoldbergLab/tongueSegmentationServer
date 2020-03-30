@@ -78,6 +78,7 @@ def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
             rootlessDirectoryPathParts = directoryPath.parts
         finalizedDirectoryPath = Path(videoRootMountPoint) / Path(*rootlessDirectoryPathParts)
         reRootedDirectories.append(finalizedDirectoryPath)
+    return reRootedDirectories
 
 def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
     # Generate a list of video Path objects from the given directories using the given path filters
