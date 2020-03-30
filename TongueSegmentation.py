@@ -62,18 +62,6 @@ def initializeNeuralNetwork(neuralNetworkPath):
     clear_session()
     return load_model(neuralNetworkPath)
 
-def getVideoList(videoDirs, videoFilter='*'):
-    # Generate a list of video Path objects from the given directories using the given path filters
-    if len(videoDirs) != len(maskSzveDirectories):
-        raise IndexError('Must provide the same # of video and mask save directories')
-    videoList = []
-    for videoDir in videoDirs:
-        p = Path(videoDir)
-        for videoPath in p.iterdir():
-            if videoPath.match(videoFilter):
-                videoList.append(videoPath)
-    return videoList
-
 def segmentVideo(neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex):
     # Save one or more predicted mask files for a given video and segmenting neural network
     #   neuralNetwork: A loaded neural network object

@@ -11,7 +11,7 @@ import urllib
 from pathlib import Path
 import fnmatch
 from ServerJob import ServerJob
-from TongueSegmentation import getVideoList, SegmentationSpecification
+from TongueSegmentation import SegmentationSpecification
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
@@ -56,6 +56,15 @@ finally:
     os.environ.clear()
     os.environ.update(envVars)
 
+def getVideoList(videoDirs, videoFilter='*'):
+    # Generate a list of video Path objects from the given directories using the given path filters
+    videoList = []
+    for videoDir in videoDirs:
+        p = Path(videoDir)
+        for videoPath in p.iterdir():
+            if videoPath.match(videoFilter):
+                videoList.append(videoPath)
+    return videoList
 
 class SegmentationServer:
     def __init__(self, webRoot='.'):
