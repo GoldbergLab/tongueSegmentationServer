@@ -303,6 +303,6 @@ while True:
         logger.log(logging.INFO, 'Starting segmentation server...')
         serve(application, host='0.0.0.0', port=5000)
         logger.log(logging.INFO, '...segmentation server started!')
-    except e:
+    except:
         logger.exception('Server crashed!')
     time.sleep(5)
