@@ -176,6 +176,8 @@ class SegmentationServer:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return ['<html><body><h1>Bad setup parameters. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
         videoRootMountPoint = postData['videoRootMountPoint']
+        logger.log(logging.INFO, type(postData['videoRoot']))
+        logger.log(logging.INFO, postData['videoRoot'])
         videoDirs = postData['videoRoot'].split('\n')
         videoFilter = postData['videoFilter']
         maskSaveDirectory = postData['maskSaveDirectory']
