@@ -61,7 +61,7 @@ class SegmentationServer:
     def __init__(self, webRoot='.'):
         self.routes = [
             ('/static/*',   self.staticHandler),
-            ('/confirmJob', self.confirmJobHandler)
+            ('/confirmJob', self.confirmJobHandler),
             ('/',           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
