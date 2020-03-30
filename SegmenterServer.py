@@ -8,7 +8,7 @@ import time
 import sys
 from subprocess import Popen, PIPE
 import urllib
-from pathlib import Path
+from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
 from ServerJob import ServerJob
 from TongueSegmentation import SegmentationSpecification
@@ -56,11 +56,31 @@ finally:
     os.environ.clear()
     os.environ.update(envVars)
 
-def getVideoList(videoDirs, videoFilter='*'):
+def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
     # Generate a list of video Path objects from the given directories using the given path filters
-    videoList = []
+    #   videoRootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
+    #   videoDirs - a list of strings representing video directory paths to look in
+    #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
+    finalizedVideoDirs = []
+    if pathStyle == 'windowsStyle':
+        OSPurePath = PureWindowsPath
+    elif pathStyle == 'posixStyle':
+        OSPurePath = PurePosixPath
+    else:
+        raise ValueError('Invalid path style: {pathStyle}'.format(pathStyle=pathStyle))
+
     for videoDir in videoDirs:
-        p = Path(videoDir)
+        videoDirPath = OSPurePath(videoDir)
+        if videoDirPath.parts[0] == videoDirPath.anchor:
+            # This path includes the root - remove it.
+            rootlessVideoDirPathParts = videoDirPath.parts[1:]
+        else:
+            rootlessVideoDirPathParts = videoDirPath.parts
+        finalizedVideoDirPath = Path(videoRootMountPoint) / Path(*rootlessVideoDirPathParts)
+        finalizedVideoDirs.append(finalizedVideoDirPath)
+
+    videoList = []
+    for p in finalizedVideoDirs:
         for videoPath in p.iterdir():
             if videoPath.match(videoFilter):
                 videoList.append(videoPath)
@@ -151,6 +171,8 @@ class SegmentationServer:
         videoRootMountPoint = postData['videoRootMountPoint']
         videoDirs = postData['videoRoot'].split('\n')
         videoFilter = postData['videoFilter']
+        maskSaveDirectory = postData['maskSaveDirectory']
+        pathStyle = postData['pathStyle']
         networkName = postData['networkName']
         binaryThreshold = postData['binaryThreshold']
         topOffset = postData['topOffset']
@@ -159,7 +181,7 @@ class SegmentationServer:
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[]
         )
-        videoList = getVideoList(videoDirs, videoFilter=videoFilter)
+        videoList = getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter=videoFilter)
         newJob = self.startJob(videoList, maskSaveDirectory, segSpec)
         self.pendingJobs[newJob.jobNum] = newJob
         start_fn('200 OK', [('Content-Type', 'text/html')])
@@ -245,6 +267,17 @@ botHeight=botHeight
     <div class="field-wrap">
         <label class="field-label" for="maskSaveDirectory">Mask save directory:</label>
         <input class="field" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
+    </div>
+    <div class="field-wrap"
+        <div>
+          <input type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths"
+                 checked>
+          <label for="windowsStyle">Windows-style paths</label>
+        </div>
+        <div>
+          <input type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
+          <label for="posixStyle">Mac/Linux-style paths</label>
+        </div>
     </div>
     <div class="field-wrap">
         <label class="field-label" for="networkName">Neural network name:</label>
