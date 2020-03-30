@@ -227,7 +227,7 @@ botHeight=botHeight
     </div>
     <div class="field-wrap">
         <label class="field-label" for="videoRoot">Video root directories (one per line):</label>
-        <textarea class="field" rows="3" cols="30" id="videoRoot" name="videoRoot" value="">
+        <textarea class="field" rows="3" cols="30" id="videoRoot" name="videoRoot" value=""></textarea>
     </div>
     <div class="field-wrap">
         <label class="field-label" for="videoFilter">Video filename filter:</label>
@@ -295,13 +295,18 @@ Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
         return ['<html><body><h1>Path {name} not recognized!</body></html>'.format(name=requestedPath).encode('utf-8')]
 
+if len(sys.argv) > 1:
+    port = int(sys.argv[1])
+else:
+    port = 5000
+
 logger.log(logging.INFO, 'Spinning up server!')
 while True:
     s = SegmentationServer(webRoot=ROOT)
     application = BasicAuth(s)
     try:
         logger.log(logging.INFO, 'Starting segmentation server...')
-        serve(application, host='0.0.0.0', port=5000)
+        serve(application, host='0.0.0.0', port=port)
         logger.log(logging.INFO, '...segmentation server started!')
     except:
         logger.exception('Server crashed!')
