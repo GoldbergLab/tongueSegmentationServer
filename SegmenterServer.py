@@ -56,12 +56,12 @@ finally:
     os.environ.clear()
     os.environ.update(envVars)
 
-def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
-    # Generate a list of video Path objects from the given directories using the given path filters
+def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
     #   videoRootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
     #   videoDirs - a list of strings representing video directory paths to look in
     #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
-    finalizedVideoDirs = []
+
+    reRootedDirectories = []
     if pathStyle == 'windowsStyle':
         OSPurePath = PureWindowsPath
     elif pathStyle == 'posixStyle':
@@ -69,15 +69,22 @@ def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
     else:
         raise ValueError('Invalid path style: {pathStyle}'.format(pathStyle=pathStyle))
 
-    for videoDir in videoDirs:
-        videoDirPath = OSPurePath(videoDir)
-        if videoDirPath.parts[0] == videoDirPath.anchor:
+    for directory in directories:
+        directoryPath = OSPurePath(directory)
+        if directoryPath.parts[0] == directoryPath.anchor:
             # This path includes the root - remove it.
-            rootlessVideoDirPathParts = videoDirPath.parts[1:]
+            rootlessDirectoryPathParts = directoryPath.parts[1:]
         else:
-            rootlessVideoDirPathParts = videoDirPath.parts
-        finalizedVideoDirPath = Path(videoRootMountPoint) / Path(*rootlessVideoDirPathParts)
-        finalizedVideoDirs.append(finalizedVideoDirPath)
+            rootlessDirectoryPathParts = directoryPath.parts
+        finalizedDirectoryPath = Path(videoRootMountPoint) / Path(*rootlessDirectoryPathParts)
+        reRootedDirectories.append(finalizedDirectoryPath)
+
+def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
+    # Generate a list of video Path objects from the given directories using the given path filters
+    #   videoRootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
+    #   videoDirs - a list of strings representing video directory paths to look in
+    #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
+    finalizedVideoDirs = reRootDirectories(videoRootMountPoint, pathStyle, *videoDirs)
 
     videoList = []
     for p in finalizedVideoDirs:
