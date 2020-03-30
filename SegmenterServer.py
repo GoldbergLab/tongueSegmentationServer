@@ -276,7 +276,7 @@ botHeight=botHeight
         <input class="field" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
     </div>
     <div class="field-wrap"
-        <label class="field-label" for="pathStyleWrapper">Mask save directory:</label>
+        <label class="field-label" for="pathStyleWrapper">Path style:</label>
         <div id='pathStyleWrapper' class='field'>
             <div>
               <input type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths"
