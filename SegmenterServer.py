@@ -76,8 +76,6 @@ def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
             rootlessDirectoryPathParts = directoryPath.parts[1:]
         else:
             rootlessDirectoryPathParts = directoryPath.parts
-        logger.log(logging.INFO, str(videoRootMountPoint))
-        logger.log(logging.INFO, str(rootlessDirectoryPathParts))
         finalizedDirectoryPath = Path(videoRootMountPoint) / Path(*rootlessDirectoryPathParts)
         reRootedDirectories.append(finalizedDirectoryPath)
 
@@ -177,12 +175,12 @@ class SegmentationServer:
             # Not all form parameters got POSTed
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return ['<html><body><h1>Bad setup parameters. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
-        videoRootMountPoint = postData['videoRootMountPoint']
-        videoDirs = postData['videoRoot'][0].split('\n')
-        videoFilter = postData['videoFilter']
-        maskSaveDirectory = postData['maskSaveDirectory']
+        videoRootMountPoint = postData['videoRootMountPoint'][0]
+        videoDirs = postData['videoRoot'][0].strip().splitlines()
+        videoFilter = postData['videoFilter'][0]
+        maskSaveDirectory = postData['maskSaveDirectory'][0]
         pathStyle = postData['pathStyle'][0]
-        networkName = postData['neuralNetwork']
+        networkName = postData['neuralNetwork'][0]
         binaryThreshold = postData['binaryThreshold']
         topOffset = postData['topOffset']
         topHeight = postData['topHeight']
