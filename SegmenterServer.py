@@ -76,6 +76,8 @@ def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
             rootlessDirectoryPathParts = directoryPath.parts[1:]
         else:
             rootlessDirectoryPathParts = directoryPath.parts
+        logger.log(logging.INFO, str(videoRootMountPoint))
+        logger.log(logging.INFO, str(rootlessDirectoryPathParts))
         finalizedDirectoryPath = Path(videoRootMountPoint) / Path(*rootlessDirectoryPathParts)
         reRootedDirectories.append(finalizedDirectoryPath)
 
