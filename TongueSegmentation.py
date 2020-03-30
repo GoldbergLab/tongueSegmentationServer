@@ -15,6 +15,7 @@ from pathlib import Path
 class SegmentationSpecification:
     # A class to hold the info about the parts of the image that should be separately segmented.
     # Provide a list of part names, and correspondingly indexed lists of part widths, heights, xOffsets, and yOffsets
+    # Width or height entries may be None, which means the part extends the maximum distance to the edge of the frame
     def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[]):
         self.partNames = partNames
         self._specs = dict(zip(partNames, zip(widths, heights)))
@@ -30,11 +31,17 @@ class SegmentationSpecification:
 
     def getXLim(self, partName):
         w, h, x, y = self._specs[partName]
-        return (x, x+w)
+        if w is None:
+            return (x, None)
+        else:
+            return (x, x+w)
 
     def getYLim(self, partName):
         w, h, x, y = self._specs[partName]
-        return (y, y+h)
+        if h is None:
+            return (y, None)
+        else:
+            return (y, y+h)
 
     def getXSlice(self, partName):
         return slice(*self.getXLim())
@@ -67,9 +74,9 @@ def getVideoList(videoDirs, videoFilter='*'):
                 videoList.append(videoPath)
     return videoList
 
-def segmentVideo(neuralNetworks, videoPath, segSpec, maskSaveDirectory, videoIndex):
+def segmentVideo(neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex):
     # Save one or more predicted mask files for a given video and segmenting neural network
-    #   neuralNetworks: A dictionary of loaded neural network objects, one per "partName"
+    #   neuralNetwork: A loaded neural network object
     #   videoPath: The path to the video file in question
     #   segSpec: a SegmentationSpecification object, which defines how to split the image up into parts to do separate segmentations
     #   maskSaveDirectory: The directory in which to save the completed binary mask predictions
@@ -80,6 +87,8 @@ def segmentVideo(neuralNetworks, videoPath, segSpec, maskSaveDirectory, videoInd
     cap.open()
 
     nFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    wFrame = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    hFrame = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     # Prepare video buffer arrays to receive data
     imageBuffers = {}
@@ -95,9 +104,8 @@ def segmentVideo(neuralNetworks, videoPath, segSpec, maskSaveDirectory, videoInd
                 # Get info on how to separate the frame into parts
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
-                w = segSpec.getWidth(partName)
-                h = segSpec.getHeight(partName)
                 # Write the frame part into the video buffer array
+                h, w, _ = frame[yS, xS, 1].shape
                 imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, h, w, 1)
             k = k+1
         # Break the loop
@@ -112,7 +120,7 @@ def segmentVideo(neuralNetworks, videoPath, segSpec, maskSaveDirectory, videoInd
         # Convert image to uint8
         imageBuffer[partName] = imageBuffer[partName].astype(np.uint8)
         # Create predicted mask
-        maskPredictions[partName] = neuralNetworks[partName].predict(imageBuffer[partName])
+        maskPredictions[partName] = neuralNetwork.predict(imageBuffer[partName])
         # Threshold mask to make it binary
         maskPredictionsBinary[partName] = maskPredictions[partName] > 0.3
         # Generate save name for mask

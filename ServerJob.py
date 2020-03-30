@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import logging
-from TongueSegmentation import initializeNeuralNetwork, getVideoList, segmentVideo
+from TongueSegmentation import initializeNeuralNetwork, segmentVideo
+import copy
 
 def clearQueue(q):
     if q is not None:
@@ -45,23 +46,24 @@ class StateMachineProcess(mp.Process):
         self.logBuffer = []
 
 class ServerJob(StateMachineProcess):
-    # Class for acquiring an audio signal (or any analog signal) at a rate that
-    #   is synchronized to the rising edges on the specified synchronization
-    #   channel.
+    # Class that the server can use to spawn a separate process state machine
+    #   to segment a set of videos
 
     # States:
     STOPPED = 0
     INITIALIZING = 1
-    WORKING = 2
-    STOPPING = 3
-    ERROR = 4
-    EXITING = 5
+    WAITING = 2
+    WORKING = 3
+    STOPPING = 4
+    ERROR = 5
+    EXITING = 6
     DEAD = 100
 
     stateList = {
         -1:'UNKNOWN',
         STOPPED :'STOPPED',
         INITIALIZING :'INITIALIZING',
+        WAITING:'WAITING',
         WORKING :'WORKING',
         STOPPING :'STOPPING',
         ERROR :'ERROR',
@@ -74,22 +76,31 @@ class ServerJob(StateMachineProcess):
     STOP = 'msg_stop'
     EXIT = 'msg_exit'
     SETPARAMS = 'msg_setParams'
+    PROCESS = 'msg_process'
 
     settableParams = [
         'verbose'
     ]
 
+    newJobNum = itertools.count().__next__   # Source of this clever little idea: https://stackoverflow.com/a/1045724/1460057
+
     def __init__(self,
                 verbose = False,
-                videoDirs = None,
-                videoFilter = '*',
+                videoList = None,
+                maskSaveDirectory = None,
+                segmentationSpecification = None,
+                waitingTimeout = 600,
                 **kwargs):
         StateMachineProcess.__init__(self, **kwargs)
         # Store inputs in instance variables for later access
+        self.jobNum = (ServerJob.newJobNum(), idspace)
         self.errorMessages = []
         self.verbose = verbose
-        self.videoDirs = videoDirs
-        self.videoFilter = videoFilter
+        self.videoList = videoDirs
+        self.maskSaveDirectory = maskSaveDirectory
+        self.segSpec = segmentationSpecification
+        self.progressQueue = mp.Queue()
+        self.waitingTimeout = waitingTimeout
         self.exitFlag = False
 
     def setParams(self, **params):
@@ -100,8 +111,15 @@ class ServerJob(StateMachineProcess):
             else:
                 if self.verbose >= 0: self.log("Param not settable: {key}={val}".format(key=key, val=params[key]))
 
-    def rescaleAudio(data, maxV=10, minV=-10, maxD=32767, minD=-32767):
-        return (data * ((maxD-minD)/(maxV-minV))).astype('int16')
+    def sendProgress(self, finishedVideoList, videoList, currentVideo, processingStartTime):
+        # Send progress to server:
+        progress = dict(
+            videosCompleted=len(finishedVideoList),
+            videosRemaining=len(videoList),
+            lastCompletedVideoPath=currentVideo,
+            lastProcessingStartTime=processingStartTime
+        )
+        self.progressQueue.put(('PROGRESS', progress))
 
     def run(self):
         self.PID.value = os.getpid()
@@ -123,9 +141,12 @@ class ServerJob(StateMachineProcess):
 
                     # CHECK FOR MESSAGES
                     try:
-                        msg, arg = self.msgQueue.get(block=True)
+                        msg, arg = self.msgQueue.get(block=True, timeout=self.waitingTimeout)
                         if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
-                    except queue.Empty: msg = ''; arg = None
+                    except queue.Empty:
+                        self.exitFlag = True
+                        if self.verbose >= 0: self.log('Waiting timeout expired while stopped - exiting')
+                        msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
@@ -145,8 +166,12 @@ class ServerJob(StateMachineProcess):
                 elif state == ServerJob.INITIALIZING:
                     # DO STUFF
                     neuralNetwork = initializeNeuralNetwork()
-                    videoList = getVideoList(self.videoDirs, videoFilter=self.videoFilter)
-                    segmentVideo
+                    unfinishedVideoList = copy.deepcopy(self.videoList)
+                    finishedVideoList = []
+                    videoIndex = 0
+                    processingStartTime = None
+                    if self.verbose >= 3: self.log('Server job initialized!')
+                    self.sendProgress(finishedVideoList, videoList, currentVideo, processingStartTime)
 
                     # CHECK FOR MESSAGES
                     try:
@@ -158,7 +183,7 @@ class ServerJob(StateMachineProcess):
                     if self.exitFlag:
                         nextState = ServerJob.STOPPING
                     elif msg in ['', ServerJob.START]:
-                        nextState = ServerJob.ACQUIRE_READY
+                        nextState = ServerJob.WAITING
                     elif msg == ServerJob.STOP:
                         nextState = ServerJob.STOPPING
                     elif msg == ServerJob.EXIT:
@@ -166,9 +191,49 @@ class ServerJob(StateMachineProcess):
                         nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
-# ********************************* ACQUIRING *********************************
+# ********************************* WAITING *********************************
+                elif state == ServerJob.WAITING:
+                    # DO STUFF
+
+                    # CHECK FOR MESSAGES
+                    try:
+                        msg, arg = self.msgQueue.get(block=True, timeout=self.waitingTimeout)
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                    except queue.Empty:
+                        self.exitFlag = True
+                        if self.verbose >= 0: self.log('Waiting timeout expired - exiting')
+                        msg = ''; arg = None
+
+                    # CHOOSE NEXT STATE
+                    if self.exitFlag:
+                        nextState = ServerJob.STOPPING
+                    elif msg == '':
+                        nextState = state
+                    elif msg == ServerJob.PROCESS:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.STOP:
+                        nextState = ServerJob.STOPPING
+                    elif msg == ServerJob.EXIT:
+                        self.exitFlag = True
+                        nextState = ServerJob.STOPPING
+                    else:
+                        raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
+# ********************************* WORKING *********************************
                 elif state == ServerJob.WORKING:
                     # DO STUFF
+                    # Record processing time
+                    processingStartTime = time.time_ns()
+                    # Segment video
+                    currentVideo = videoList.pop(0)
+                    segmentVideo(neuralNetwork, currentVideo, segSpec, self.maskSaveDirectory, videoIndex)
+                    videoIndex += 1
+                    finishedVideoList.append(currentVideo)
+                    self.sendProgress(finishedVideoList, videoList, currentVideo, processingStartTime)
+                    if self.verbose >= 3: self.log('Server job progress: {prog}'.format(prog=progress))
+                    # Are we done?
+                    if len(videoList) == 0:
+                        if self.verbose >= 2: self.log('Server job complete, setting exit flag to true.')
+                        self.exitFlag = True
 
                     # CHECK FOR MESSAGES
                     try:
