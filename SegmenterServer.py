@@ -276,14 +276,17 @@ botHeight=botHeight
         <input class="field" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
     </div>
     <div class="field-wrap"
-        <div>
-          <input type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths"
-                 checked>
-          <label for="windowsStyle">Windows-style paths</label>
-        </div>
-        <div>
-          <input type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
-          <label for="posixStyle">Mac/Linux-style paths</label>
+        <label class="field-label" for="pathStyleWrapper">Mask save directory:</label>
+        <div id='pathStyleWrapper' class='field'>
+            <div>
+              <input type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths"
+                     checked>
+              <label for="windowsStyle">Windows-style paths</label>
+            </div>
+            <div>
+              <input type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
+              <label for="posixStyle">Mac/Linux-style paths</label>
+            </div>
         </div>
     </div>
     <div class="field-wrap">
