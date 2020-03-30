@@ -62,9 +62,9 @@ def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
     #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
 
     reRootedDirectories = []
-    if pathStyle == 'windowsStyle':
+    if pathStyle == 'windowsStylePaths':
         OSPurePath = PureWindowsPath
-    elif pathStyle == 'posixStyle':
+    elif pathStyle == 'posixStylePaths':
         OSPurePath = PurePosixPath
     else:
         raise ValueError('Invalid path style: {pathStyle}'.format(pathStyle=pathStyle))
