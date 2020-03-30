@@ -2,6 +2,7 @@ import multiprocessing as mp
 import logging
 from TongueSegmentation import initializeNeuralNetwork, segmentVideo
 import copy
+import itertools
 
 def clearQueue(q):
     if q is not None:
