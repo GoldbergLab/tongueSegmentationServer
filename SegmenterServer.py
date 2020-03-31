@@ -1,3 +1,5 @@
+#!/usr/bin/env
+
 from waitress import serve
 from wsgi_basic_auth import BasicAuth
 import os
@@ -351,7 +353,7 @@ Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</
 if len(sys.argv) > 1:
     port = int(sys.argv[1])
 else:
-    port = 5000
+    port = 80
 
 logger.log(logging.INFO, 'Spinning up server!')
 while True:
