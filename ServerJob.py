@@ -94,6 +94,7 @@ class ServerJob(StateMachineProcess):
                 maskSaveDirectory = None,
                 segmentationSpecification = None,
                 waitingTimeout = 600,
+                neuralNetworkPath = None,
                 **kwargs):
         StateMachineProcess.__init__(self, **kwargs)
         # Store inputs in instance variables for later access
@@ -105,6 +106,7 @@ class ServerJob(StateMachineProcess):
         self.segSpec = segmentationSpecification
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
+        self.neuralNetworkPath = neuralNetworkPath
         self.exitFlag = False
 
     def setParams(self, **params):
@@ -169,7 +171,7 @@ class ServerJob(StateMachineProcess):
 # ********************************* INITIALIZING *********************************
                 elif state == ServerJob.INITIALIZING:
                     # DO STUFF
-                    neuralNetwork = initializeNeuralNetwork()
+                    neuralNetwork = initializeNeuralNetwork(self.neuralNetworkPath)
                     unfinishedVideoList = copy.deepcopy(self.videoList)
                     finishedVideoList = []
                     videoIndex = 0

@@ -146,12 +146,13 @@ class SegmentationServer:
         optionText = "\n".join(options)
         return optionText
 
-    def startJob(self, videoList, maskSaveDirectory, segmentationSpecification):
+    def startJob(self, videoList, maskSaveDirectory, segmentationSpecification, neuralNetworkPath):
         newJob = ServerJob(
             videoList = videoList,
             maskSaveDirectory = maskSaveDirectory,
             segmentationSpecification = segmentationSpecification,
             logger = logger,
+            neuralNetworkPath = neuralNetworkPath,
             verbose = 1
             )
         newJob.start()
@@ -196,7 +197,7 @@ class SegmentationServer:
             partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[]
         )
         videoList = getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter=videoFilter)
-        newJob = self.startJob(videoList, maskSaveDirectory, segSpec)
+        newJob = self.startJob(videoList, maskSaveDirectory, segSpec, networkName)
         self.pendingJobs[newJob.jobNum] = newJob
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return ['''
