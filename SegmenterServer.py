@@ -102,7 +102,8 @@ class SegmentationServer:
         self.routes = [
             ('/static/*',   self.staticHandler),
             ('/confirmJob', self.confirmJobHandler),
-            ('/startJob/*',   self.startJobHandler),
+            ('/startJob/*', self.startJobHandler),
+            ('/checkJob/*', self.checkJobHandler),
             ('/',           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
