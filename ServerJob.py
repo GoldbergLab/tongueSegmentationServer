@@ -97,7 +97,7 @@ class ServerJob(StateMachineProcess):
         self.jobNum = ServerJob.newJobNum()
         self.errorMessages = []
         self.verbose = verbose
-        self.videoList = videoDirs
+        self.videoList = videoList
         self.maskSaveDirectory = maskSaveDirectory
         self.segSpec = segmentationSpecification
         self.progressQueue = mp.Queue()
