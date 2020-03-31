@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.7
 
 from waitress import serve
 from wsgi_basic_auth import BasicAuth
