@@ -255,7 +255,7 @@ jobID=newJob.jobNum
             self.jobProgress[jobNum] = {}
             self.jobProgress[jobNum]['completedFiles'] = []
             self.jobProgress[jobNum]['times'] = []
-            self.job.msgQueue.put((ServerJob.PROCESS, None))
+            self.jobs[jobNum].msgQueue.put((ServerJob.PROCESS, None))
 
         start_fn('303 See Other', [('Location','/checkJob/{jobID}'.format(jobID=jobNum))])
         return []
