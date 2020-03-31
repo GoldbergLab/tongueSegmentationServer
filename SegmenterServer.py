@@ -12,6 +12,8 @@ from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
 from ServerJob import ServerJob
 from TongueSegmentation import SegmentationSpecification
+import queue
+import numpy as np
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
@@ -99,11 +101,13 @@ class SegmentationServer:
         self.routes = [
             ('/static/*',   self.staticHandler),
             ('/confirmJob', self.confirmJobHandler),
+            ('/startJob',   self.startJobHandler),
             ('/',           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
         self.jobs = {}
         self.pendingJobs = {}
+        self.jobProgress = {}
 
     def __call__(self, environ, start_fn):
         for path, handler in self.routes:
@@ -164,7 +168,7 @@ class SegmentationServer:
         else:
             logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            yield ['<html><body><h1>Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
+            yield ['<html><body><h1>Error: Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
 
     def confirmJobHandler(self, environ, start_fn):
         # Display page showing what job will be, and offering opportunity to go ahead or cancel
@@ -175,7 +179,7 @@ class SegmentationServer:
         if not all([key in postData for key in keys]):
             # Not all form parameters got POSTed
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Bad setup parameters. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
+            return ['<html><body><h1>Error: Bad setup parameters. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
         videoRootMountPoint = postData['videoRootMountPoint'][0]
         videoDirs = postData['videoRoot'][0].strip().splitlines()
         videoFilter = postData['videoFilter'][0]
@@ -208,6 +212,9 @@ class SegmentationServer:
         <div>Top mask vertical offset: {topOffset} </div>
         <div>Top mask height:          {topHeight} </div>
         <div>Bottom mask height:       {botHeight} </div>
+        <form action="/startJob/{jobID}">
+            <input type="submit" value="Start job" />
+        </form>
     </body>
 </html>
         '''.format(
@@ -216,27 +223,87 @@ networkName=networkName,
 binaryThreshold=binaryThreshold,
 topOffset=topOffset,
 topHeight=topHeight,
-botHeight=botHeight
+botHeight=botHeight,
+jobID=newJob.jobNum
         ).encode('utf-8')]
 
     def startJobHandler(self, environ, start_fn):
-        jobNum = None;  # Get jobNum from URL
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-1])
         if jobNum not in self.pendingJobs:
-            # Error, invalid jobNum
-            pass
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Please click here to re-enter.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
         elif self.pendingJobs[jobNum].exitcode is not None:
             # Error, process has terminated
-            pass
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return ['<html><body><h1>Error: Requested job has already terminated. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
         elif self.pendingJobs[jobNum].publishedStateVar.value != ServerJob.WAITING:
             # Error, job is not in the waiting state
             jobState = ServerJob.stateList[self.pendingJobs[jobNum].publishedStateVar.value]
-            pass
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return ['<html><body><h1>Error: Job is not waiting to begin, but instead is in state {state}. <a href="/">Please click here to re-enter.</a></body></html>'.format(state=jobState).encode('utf-8')]
         else:
             # Valid, waiting process
             job = self.pendingJobs[jobNum]
             del self.pendingJobs[jobNum]
             self.jobs[jobNum] = job
+            self.jobProgress[jobNum] = {}
+            self.jobProgress[jobNum]['completedFiles'] = []
+            self.jobProgress[jobNum]['times'] = []
             self.job.msgQueue.put((ServerJob.PROCESS, None))
+
+        start_fn('303 See Other', [('Location','/checkJob/{jobID}'.format(jobID=jobNum))])
+        return []
+
+    def checkJobHandler(self, environ, start_fn):
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-1])
+        if jobNum not in self.jobs:
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Please click here to re-enter.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
+        jobState = self.jobs[jobNum].publishedStateVar.value
+        jobStateName = ServerJob.stateList[jobState]
+        while True:
+            try:
+                progress = self.jobs[jobNum].progressQueue.get(block=False)
+                self.jobProgress[jobNum]['completedFiles'].append(progress['lastCompletedVideoPath'])
+                self.jobProgress[jobNum]['times'].append(progress['lastProcessingStartTime'])
+            except queue.Empty:
+                # Got all progress
+                break
+
+        meanTime = np.mean(np.diff(self.jobProgress[jobNum]['times']))
+        stdTime = np.std(np.diff(self.jobProgress[jobNum]['times']))
+        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobProgress[jobNum]['completedFiles']]),
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return ['''
+<html>
+    <body>
+        <h1>Job {jobID} is running.</h1>
+        <div>
+            Job is in state {jobState}.
+        </div>
+        <div>
+            Processing time per video: {meanTime} &plusmn; {confInt}
+        </div>
+        <div>
+            <details>
+                <summary>List of completed video files:</summary>
+                <ul>
+                    {videoList}
+                </ul>
+            </details>
+        </div>
+    </body>
+</html>
+        '''.format(
+            meanTime=meanTime,
+            confInt=stdTime*1.96,
+            videoList=completedVideoListHTML
+        ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
@@ -346,7 +413,7 @@ Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</
         logger.log(logging.INFO, 'Serving invalid warning')
         requestedPath = environ['PATH_INFO']
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
-        return ['<html><body><h1>Path {name} not recognized!</body></html>'.format(name=requestedPath).encode('utf-8')]
+        return ['<html><body><h1>Error: Path {name} not recognized!</body></html>'.format(name=requestedPath).encode('utf-8')]
 
 if len(sys.argv) > 1:
     port = int(sys.argv[1])
