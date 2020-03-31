@@ -4,6 +4,8 @@ from TongueSegmentation import initializeNeuralNetwork, segmentVideo
 import copy
 import itertools
 import os
+import queue
+import traceback
 
 def clearQueue(q):
     if q is not None:
