@@ -126,7 +126,7 @@ class ServerJob(StateMachineProcess):
             lastCompletedVideoPath=currentVideo,
             lastProcessingStartTime=processingStartTime
         )
-        self.progressQueue.put(('PROGRESS', progress))
+        self.progressQueue.put(progress)
 
     def run(self):
         self.PID.value = os.getpid()
