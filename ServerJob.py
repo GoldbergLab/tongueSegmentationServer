@@ -171,7 +171,9 @@ class ServerJob(StateMachineProcess):
 # ********************************* INITIALIZING *********************************
                 elif state == ServerJob.INITIALIZING:
                     # DO STUFF
+                    if self.verbose >= 1: self.log('Initializing neural network...')
                     neuralNetwork = initializeNeuralNetwork(self.neuralNetworkPath)
+                    if self.verbose >= 1: self.log('...neural network initialized.')
                     unfinishedVideoList = copy.deepcopy(self.videoList)
                     finishedVideoList = []
                     videoIndex = 0
