@@ -182,10 +182,10 @@ class SegmentationServer:
         maskSaveDirectory = postData['maskSaveDirectory'][0]
         pathStyle = postData['pathStyle'][0]
         networkName = postData['neuralNetwork'][0]
-        binaryThreshold = postData['binaryThreshold']
-        topOffset = postData['topOffset']
-        topHeight = postData['topHeight']
-        botHeight = postData['botHeight']
+        binaryThreshold = postData['binaryThreshold'][0]
+        topOffset = postData['topOffset'][0]
+        topHeight = postData['topHeight'][0]
+        botHeight = postData['botHeight'][0]
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[]
         )
