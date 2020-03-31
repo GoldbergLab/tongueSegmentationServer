@@ -234,7 +234,7 @@ class ServerJob(StateMachineProcess):
                     processingStartTime = time.time_ns()
                     # Segment video
                     currentVideo = self.videoList.pop(0)
-                    segmentVideo(neuralNetwork, currentVideo, segSpec, self.maskSaveDirectory, videoIndex)
+                    segmentVideo(neuralNetwork, currentVideo, self.segSpec, self.maskSaveDirectory, videoIndex)
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
                     self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
