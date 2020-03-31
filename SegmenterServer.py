@@ -166,7 +166,7 @@ class SegmentationServer:
         else:
             logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
+            yield ['<html><body><h1>Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
 
     def confirmJobHandler(self, environ, start_fn):
         # Display page showing what job will be, and offering opportunity to go ahead or cancel
