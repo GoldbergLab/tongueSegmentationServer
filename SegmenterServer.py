@@ -151,6 +151,7 @@ class SegmentationServer:
             videoList = videoList,
             maskSaveDirectory = maskSaveDirectory,
             segmentationSpecification = segmentationSpecification,
+            logger = logger,
             verbose = 1
             )
         newJob.start()
