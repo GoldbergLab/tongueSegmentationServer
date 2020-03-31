@@ -94,7 +94,7 @@ class ServerJob(StateMachineProcess):
                 **kwargs):
         StateMachineProcess.__init__(self, **kwargs)
         # Store inputs in instance variables for later access
-        self.jobNum = (ServerJob.newJobNum(), idspace)
+        self.jobNum = ServerJob.newJobNum()
         self.errorMessages = []
         self.verbose = verbose
         self.videoList = videoDirs
