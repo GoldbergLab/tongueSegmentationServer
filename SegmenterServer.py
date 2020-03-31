@@ -189,7 +189,7 @@ class SegmentationServer:
         videoFilter = postData['videoFilter'][0]
         maskSaveDirectory = postData['maskSaveDirectory'][0]
         pathStyle = postData['pathStyle'][0]
-        networkName = postData['neuralNetwork'][0]
+        networkName = networksFolder / postData['neuralNetwork'][0]
         binaryThreshold = postData['binaryThreshold'][0]
         topOffset = postData['topOffset'][0]
         topHeight = postData['topHeight'][0]
