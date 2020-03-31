@@ -179,7 +179,7 @@ class ServerJob(StateMachineProcess):
                     videoIndex = 0
                     processingStartTime = None
                     if self.verbose >= 3: self.log('Server job initialized!')
-                    self.sendProgress(finishedVideoList, videoList, currentVideo, processingStartTime)
+                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
 
                     # CHECK FOR MESSAGES
                     try:
@@ -232,14 +232,14 @@ class ServerJob(StateMachineProcess):
                     # Record processing time
                     processingStartTime = time.time_ns()
                     # Segment video
-                    currentVideo = videoList.pop(0)
+                    currentVideo = self.videoList.pop(0)
                     segmentVideo(neuralNetwork, currentVideo, segSpec, self.maskSaveDirectory, videoIndex)
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
-                    self.sendProgress(finishedVideoList, videoList, currentVideo, processingStartTime)
+                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
                     if self.verbose >= 3: self.log('Server job progress: {prog}'.format(prog=progress))
                     # Are we done?
-                    if len(videoList) == 0:
+                    if len(self.videoList) == 0:
                         if self.verbose >= 2: self.log('Server job complete, setting exit flag to true.')
                         self.exitFlag = True
 
