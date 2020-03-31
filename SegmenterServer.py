@@ -154,6 +154,7 @@ class SegmentationServer:
             verbose = 1
             )
         newJob.start()
+        newJob.msgQueue.put((ServerJob.START, None))
         return newJob
 
     def staticHandler(self, environ, start_fn):
