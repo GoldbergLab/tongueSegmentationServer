@@ -4,7 +4,6 @@ import numpy as np
 from keras.models import load_model
 #from keras.layers import *
 from keras.backend import clear_session
-from scipy.io import loadmat
 from scipy.io import savemat
 import glob
 import cv2

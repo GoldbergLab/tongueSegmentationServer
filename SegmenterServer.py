@@ -14,6 +14,7 @@ from ServerJob import ServerJob
 from TongueSegmentation import SegmentationSpecification
 import queue
 import numpy as np
+from scipy.io import loadmat
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
@@ -236,16 +237,16 @@ jobID=newJob.jobNum
         if jobNum not in self.pendingJobs:
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Please click here to re-enter.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
+            return ['<html><body><h1>Error: Invalid job ID {jobID}. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.format(jobID=jobNum).encode('utf-8')]
         elif self.pendingJobs[jobNum].exitcode is not None:
             # Error, process has terminated
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Requested job has already terminated. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
+            return ['<html><body><h1>Error: Requested job has already terminated. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.encode('utf-8')]
         elif self.pendingJobs[jobNum].publishedStateVar.value != ServerJob.WAITING:
             # Error, job is not in the waiting state
             jobState = ServerJob.stateList[self.pendingJobs[jobNum].publishedStateVar.value]
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Job is not waiting to begin, but instead is in state {state}. <a href="/">Please click here to re-enter.</a></body></html>'.format(state=jobState).encode('utf-8')]
+            return ['<html><body><h1>Error: Job is not waiting to begin, but instead is in state {state}. </h1><h2><a href="/">Please click here to re-enter.</a></h2></body></html>'.format(state=jobState).encode('utf-8')]
         else:
             # Valid, waiting process
             job = self.pendingJobs[jobNum]
