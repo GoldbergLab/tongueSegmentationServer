@@ -217,7 +217,7 @@ binaryThreshold=binaryThreshold,
 topOffset=topOffset,
 topHeight=topHeight,
 botHeight=botHeight
-        )]
+        ).encode('utf-8')]
 
     def startJobHandler(self, environ, start_fn):
         jobNum = None;  # Get jobNum from URL
