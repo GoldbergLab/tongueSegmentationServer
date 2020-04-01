@@ -15,6 +15,8 @@ from TongueSegmentation import SegmentationSpecification
 import queue
 import numpy as np
 from scipy.io import loadmat
+import json
+from collections import OrderedDict as odict
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
@@ -97,19 +99,40 @@ def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
                 videoList.append(videoPath)
     return videoList
 
+class UpdaterDaemon(mp.Process):
+    def __init__(self,
+                interval=5,             # Time in seconds to wait between update requests
+                port=80,                # Port to send request to
+                host="localhost",       # Host to send request to
+                url="/updateQueue",     # Relative URL for triggering queue update
+                **kwargs):
+        mp.Process.__init__(self, *args, daemon=True, **kwargs)
+        self.fullURL = "{host}:{port}{url}".format(host=host, port=port, url=url)
+        self.interval = interval
+
+    def run(self):
+        while True:
+            urllib.request.urlopen(self.fullURL)
+            time.sleep(self.inverval)
+
 class SegmentationServer:
+    newJobNum = itertools.count().__next__   # Source of this clever little idea: https://stackoverflow.com/a/1045724/1460057
     def __init__(self, webRoot='.'):
         self.routes = [
-            ('/static/*',   self.staticHandler),
-            ('/confirmJob', self.confirmJobHandler),
-            ('/startJob/*', self.startJobHandler),
-            ('/checkJob/*', self.checkJobHandler),
-            ('/',           self.rootHandler)
+            ('/static/*',           self.staticHandler),
+            ('/finalizeJob',        self.finalizeJobHandler),
+            ('/confirmJob/*',       self.confirmJobHandler),
+            ('/checkProgress/*',    self.checkProgressHandler),
+            ('/updateQueue',        self.updateJobQueueHandler),
+            ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
-        self.jobs = {}
-        self.pendingJobs = {}
-        self.jobProgress = {}
+        self.maxActiveJobs = 1        # Maximum # of jobs allowed to be running at once
+        self.jobQueue = odict() # List of job parameters for waiting jobs
+
+        # Start daemon that periodically makes http request that prompts server to update its job queue
+        self.updaterDaemon = UpdaterDaemon(inverval=3)
+        self.updateDaemon.start()
 
     def __call__(self, environ, start_fn):
         for path, handler in self.routes:
@@ -148,19 +171,6 @@ class SegmentationServer:
         optionText = "\n".join(options)
         return optionText
 
-    def startJob(self, videoList, maskSaveDirectory, segmentationSpecification, neuralNetworkPath):
-        newJob = ServerJob(
-            videoList = videoList,
-            maskSaveDirectory = maskSaveDirectory,
-            segmentationSpecification = segmentationSpecification,
-            logger = logger,
-            neuralNetworkPath = neuralNetworkPath,
-            verbose = 1
-            )
-        newJob.start()
-        newJob.msgQueue.put((ServerJob.START, None))
-        return newJob
-
     def staticHandler(self, environ, start_fn):
         requestedStaticFileRelativePath = environ['PATH_INFO'].strip('/')
         logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
@@ -175,7 +185,13 @@ class SegmentationServer:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             yield ['<html><body><h1>Error: Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
 
-    def confirmJobHandler(self, environ, start_fn):
+    def countVideosRemaining(self):
+        completedVideosAhead =  sum([len(self.jobQueue[jobNum]['completedVideoList']) for jobNum in self.jobQueue])
+        queuedVideosAhead =     sum([len(self.jobQueue[jobNum]['videoList'])          for jobNum in self.jobQueue])
+        vidoesAhead = queuedVideosAhead - completedVideosAhead
+        return videosAhead
+
+    def finalizeJobHandler(self, environ, start_fn):
         # Display page showing what job will be, and offering opportunity to go ahead or cancel
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
@@ -199,13 +215,35 @@ class SegmentationServer:
             partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[]
         )
         videoList = getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter=videoFilter)
-        newJob = self.startJob(videoList, maskSaveDirectory, segSpec, networkName)
-        self.pendingJobs[newJob.jobNum] = newJob
+
+        jobsAhead = len(self.jobQueue)
+        videosAhead = self.countVideosRemaining()
+
+        # Add job parameters to queue
+        jobNum = SegmentationServer.newJobNum()
+        self.jobQueue[jobNum] = dict(
+            job=None,                               # Job process object
+            jobNum=jobNum,                          # Job ID
+            confirmed=False,                        # Has user confirmed params yet
+            videoList=videoList,                    # List of video paths to process
+            maskSaveDirectory=maskSaveDirectory,    # Path to save masks
+            segmentationSpecification=segSpec,      # SegSpec
+            neuralNetworkPath=networkName,          # Path to chosen neural network
+            completedVideoList=[],                  # List of processed videos
+            times=[]                                # List of video processing start times
+        )
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return ['''
 <html>
     <body>
-        <h1>Confirm job:</h1>
+        <h1>Finalize job:</h1>
+        <div>
+            There are {jobsAhead} jobs ahead of you with {videosAhead} remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
+        </div>
+        <div>
+            Please review the following job specifications and confirm if correct:
+        </div>
         <details>
             <summary>List of video files:</summary>
             <ul>
@@ -217,8 +255,8 @@ class SegmentationServer:
         <div>Top mask vertical offset: {topOffset} </div>
         <div>Top mask height:          {topHeight} </div>
         <div>Bottom mask height:       {botHeight} </div>
-        <form action="/startJob/{jobID}">
-            <input type="submit" value="Start job" />
+        <form action="/confirmJob/{jobID}">
+            <input type="submit" value="Confirm and enqueue job" />
         </form>
     </body>
 </html>
@@ -229,70 +267,144 @@ binaryThreshold=binaryThreshold,
 topOffset=topOffset,
 topHeight=topHeight,
 botHeight=botHeight,
-jobID=newJob.jobNum
+jobID=jobNum,
+jobsAhead=jobsAhead,
+videosAhead=videosAhead
         ).encode('utf-8')]
 
-    def startJobHandler(self, environ, start_fn):
+    def startJob(self, jobNum):
+        self.jobQueue[jobNum]['job'] = ServerJob(
+            verbose = 1,
+            **self.jobQueue[jobNum]
+            )
+
+        newJob.start()
+        newJob.msgQueue.put((ServerJob.START, None))
+        newJob.msgQueue.put((ServerJob.PROCESS, None))
+
+    def getQueuedJobNums(self):
+        # Get a list of job nums for queued jobs, in the queue order
+        return [self.jobQueue['jobNum'] for jobNum in self.jobQueue if self.jobQueue[jobNum]['job' is None]]
+    def getActiveJobNums(self):
+        # Get a list of active job nums
+        return [self.jobQueue['jobNum'] for jobNum in self.jobQueue if self.jobQueue[jobNum]['job' is not None]]
+    def getAllJobNums(self):
+        # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
+        return [self.jobQueue['jobNum'] for jobNum in self.jobQueue]
+
+    def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.pendingJobs:
+        if jobNum not in self.getQueuedJobNums():
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return ['<html><body><h1>Error: Invalid job ID {jobID}. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.format(jobID=jobNum).encode('utf-8')]
-        elif self.pendingJobs[jobNum].exitcode is not None:
-            # Error, process has terminated
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Requested job has already terminated. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.encode('utf-8')]
-        elif self.pendingJobs[jobNum].publishedStateVar.value != ServerJob.WAITING:
-            # Error, job is not in the waiting state
-            jobState = ServerJob.stateList[self.pendingJobs[jobNum].publishedStateVar.value]
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Job is not waiting to begin, but instead is in state {state}. </h1><h2><a href="/">Please click here to re-enter.</a></h2></body></html>'.format(state=jobState).encode('utf-8')]
+        # elif self.jobQueue[jobNum].exitcode is not None:
+        #     # Error, process has terminated
+        #     start_fn('404 Not Found', [('Content-Type', 'text/html')])
+        #     return ['<html><body><h1>Error: Requested job has already terminated. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.encode('utf-8')]
+        # elif self.pendingJobs[jobNum].publishedStateVar.value != ServerJob.WAITING:
+        #     # Error, job is not in the waiting state
+        #     jobState = ServerJob.stateList[self.pendingJobs[jobNum].publishedStateVar.value]
+        #     start_fn('404 Not Found', [('Content-Type', 'text/html')])
+        #     return ['<html><body><h1>Error: Job is not waiting to begin, but instead is in state {state}. </h1><h2><a href="/">Please click here to re-enter.</a></h2></body></html>'.format(state=jobState).encode('utf-8')]
         else:
-            # Valid, waiting process
-            job = self.pendingJobs[jobNum]
-            del self.pendingJobs[jobNum]
-            self.jobs[jobNum] = job
-            self.jobProgress[jobNum] = {}
-            self.jobProgress[jobNum]['completedFiles'] = []
-            self.jobProgress[jobNum]['times'] = []
-            self.jobs[jobNum].msgQueue.put((ServerJob.PROCESS, None))
-
-        start_fn('303 See Other', [('Location','/checkJob/{jobID}'.format(jobID=jobNum))])
+            # Valid enqueued job - set confirmed flag to True, so it can be started when at the front
+            self.jobQueue[jobNum]['confirmed'] = True
+        start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
         return []
 
-    def checkJobHandler(self, environ, start_fn):
+    def removeFinishedJob(self, jobNum):
+        del self.jobQueue[jobNum]
+
+    def updateJobQueueHandler(self, environ, start_fn):
+        # Handler for automated calls to update the queue
+        self.updateJobQueue()
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return []
+
+    def updateJobQueue(self):
+        # Check if the current job is done. If it is, remove it and start the next job
+        for jobNum in self.getActiveJobNums():
+            # Loop over active jobs, see if they're done, and pop them off if so
+            job = self.jobQueue[jobNum]['job']
+            jobState = job.publishedStateVar.value
+#            jobStateName = ServerJob.stateList[jobState]
+            if jobState == ServerJob.STOPPED:
+                pass
+            elif jobState == ServerJob.INITIALIZING:
+                pass
+            elif jobState == ServerJob.WAITING:
+                pass
+            elif jobState == ServerJob.WORKING:
+                pass
+            elif jobState == ServerJob.STOPPING:
+                pass
+            elif jobState == ServerJob.ERROR:
+                job.terminate()
+                self.removeFinishedJob()
+            elif jobState == ServerJob.EXITING:
+                pass
+            elif jobState == ServerJob.DEAD:
+                self.removeFinishedJob()
+            elif jobState == -1:
+                pass
+
+        if len(self.getActiveJobNums()) < self.maxActiveJobs:
+            # Start the next job, if any
+            for jobNum in self.getQueuedJobNums():
+                if self.jobQueue[jobNum]['confirmed']:
+                    # This is the next confirmed job - start it
+                    self.startJob(jobNum)
+                    break;
+
+    def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.jobs:
+        if jobNum not in self.getAllJobNums():
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Please click here to re-enter.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
-        jobState = self.jobs[jobNum].publishedStateVar.value
-        jobStateName = ServerJob.stateList[jobState]
-        while True:
-            try:
-                progress = self.jobs[jobNum].progressQueue.get(block=False)
-                self.jobProgress[jobNum]['completedFiles'].append(progress['lastCompletedVideoPath'])
-                self.jobProgress[jobNum]['times'].append(progress['lastProcessingStartTime'])
-            except queue.Empty:
-                # Got all progress
-                break
+            return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Click here to create a new job.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
 
-        meanTime = np.mean(np.diff(self.jobProgress[jobNum]['times']))
-        stdTime = np.std(np.diff(self.jobProgress[jobNum]['times']))
-        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobProgress[jobNum]['completedFiles']]),
+        if self.jobQueue[jobNum]['job'] is not None:
+            jobState = self.jobs[jobNum].publishedStateVar.value
+            jobStateName = ServerJob.stateList[jobState]
+            while True:
+                try:
+                    progress = self.jobQueue[jobNum]['job'].progressQueue.get(block=False)
+                    self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
+                    self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                except queue.Empty:
+                    # Got all progress
+                    break
+        else:
+            jobStateName = "ENQUEUED"
+
+        if len(self.jobQueue[jobNum]['times']) > 0:
+            deltaT = np.diff(self.jobQueue[jobNum]['times'])
+            meanTime = np.mean(deltaT)
+            stdTime = np.std(deltaT)
+            numVideos = len(self.jobQueue[jobNum]['videoList'])
+            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
+            estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
+        else:
+            meanTime = "Unknown"
+            stdTime = "Unknown"
+            estimatedTimeRemaining = "Unknown"
+
+        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobProgress[jobNum]['completedVideoList']]),
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return ['''
 <html>
     <body>
-        <h1>Job {jobID} is running.</h1>
-        <div>
-            Job is in state {jobState}.
-        </div>
+        <h1>Job {jobID} is in state {jobStateName}.</h1>
         <div>
             Processing time per video: {meanTime} &plusmn; {confInt}
+        </div>
+        <div>
+            Estimated time remaining: {estimatedTimeRemaining}
         </div>
         <div>
             <details>
@@ -307,7 +419,8 @@ jobID=newJob.jobNum
         '''.format(
             meanTime=meanTime,
             confInt=stdTime*1.96,
-            videoList=completedVideoListHTML
+            videoList=completedVideoListHTML,
+            jobStateName=jobStateName
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
@@ -329,7 +442,7 @@ jobID=newJob.jobNum
         if len(neuralNetworkList) > 0:
             networkOptionText = self.createOptionList(neuralNetworkList)
             formText = '''
-<form action="/confirmJob" method="POST">
+<form action="/finalizeJob" method="POST">
     <div class="field-wrap">
         <label class="field-label" for="videoRootMountPoint">Video root mount point:</label>
         <select class="field" name="videoRootMountPoint" id="videoRootMountPoint">

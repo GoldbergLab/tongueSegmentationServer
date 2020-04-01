@@ -78,7 +78,6 @@ class ServerJob(StateMachineProcess):
 
     #messages:
     START = 'msg_start'
-    STOP = 'msg_stop'
     EXIT = 'msg_exit'
     SETPARAMS = 'msg_setParams'
     PROCESS = 'msg_process'
@@ -87,8 +86,6 @@ class ServerJob(StateMachineProcess):
         'verbose'
     ]
 
-    newJobNum = itertools.count().__next__   # Source of this clever little idea: https://stackoverflow.com/a/1045724/1460057
-
     def __init__(self,
                 verbose = False,
                 videoList = None,
@@ -96,10 +93,11 @@ class ServerJob(StateMachineProcess):
                 segmentationSpecification = None,
                 waitingTimeout = 600,
                 neuralNetworkPath = None,
+                jobNum = None,
                 **kwargs):
         StateMachineProcess.__init__(self, **kwargs)
         # Store inputs in instance variables for later access
-        self.jobNum = ServerJob.newJobNum()
+        self.jobNum = jobNum
         self.errorMessages = []
         self.verbose = verbose
         self.videoList = videoList
@@ -142,7 +140,7 @@ class ServerJob(StateMachineProcess):
                 self.updatePublishedState(state)
 
             try:
-# ********************************* STOPPPED *********************************
+# ********************************* STOPPED *********************************
                 if state == ServerJob.STOPPED:
                     # DO STUFF
 
@@ -160,8 +158,6 @@ class ServerJob(StateMachineProcess):
                         nextState = ServerJob.EXITING
                     elif msg == '':
                         nextState = state
-                    elif msg == ServerJob.STOP:
-                        nextState = ServerJob.STOPPED
                     elif msg == ServerJob.START:
                         nextState = ServerJob.INITIALIZING
                     elif msg == ServerJob.EXIT:
@@ -193,8 +189,9 @@ class ServerJob(StateMachineProcess):
                         nextState = ServerJob.STOPPING
                     elif msg in ['', ServerJob.START]:
                         nextState = ServerJob.WAITING
-                    elif msg == ServerJob.STOP:
-                        nextState = ServerJob.STOPPING
+                    elif msg == ServerJob.PROCESS:
+                        # Skip straight to working
+                        nextState = ServerJob.WORKING
                     elif msg == ServerJob.EXIT:
                         self.exitFlag = True
                         nextState = ServerJob.STOPPING
@@ -220,8 +217,6 @@ class ServerJob(StateMachineProcess):
                         nextState = state
                     elif msg == ServerJob.PROCESS:
                         nextState = ServerJob.WORKING
-                    elif msg == ServerJob.STOP:
-                        nextState = ServerJob.STOPPING
                     elif msg == ServerJob.EXIT:
                         self.exitFlag = True
                         nextState = ServerJob.STOPPING
@@ -234,7 +229,7 @@ class ServerJob(StateMachineProcess):
                     processingStartTime = time.time_ns()
                     # Segment video
                     currentVideo = self.videoList.pop(0)
-                    segmentVideo(neuralNetwork, currentVideo, self.segSpec, self.maskSaveDirectory, videoIndex)
+                    segmentVideo(neuralNetwork=neuralNetwork, videoPath=currentVideo, segSpec=self.segSpec maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex)
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
                     self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
@@ -255,8 +250,6 @@ class ServerJob(StateMachineProcess):
                         nextState = ServerJob.STOPPING
                     elif msg in ['', ServerJob.START]:
                         nextState = ServerJob.WORKING
-                    elif msg == ServerJob.STOP:
-                        nextState = ServerJob.STOPPING
                     elif msg == ServerJob.EXIT:
                         self.exitFlag = True
                         nextState = ServerJob.STOPPING
@@ -273,17 +266,8 @@ class ServerJob(StateMachineProcess):
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
-                    if self.exitFlag:
-                        nextState = ServerJob.STOPPED
-                    elif msg == '':
-                        nextState = ServerJob.STOPPED
-                    elif msg == ServerJob.STOP:
-                        nextState = ServerJob.STOPPED
-                    elif msg == ServerJob.EXIT:
-                        self.exitFlag = True
-                        nextState = ServerJob.STOPPED
-                    elif msg == ServerJob.START:
-                        nextState = ServerJob.INITIALIZING
+                    if self.exitFlag or msg in ['', ServerJob.EXIT]:
+                        nextState = ServerJob.EXITING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* ERROR *********************************
@@ -305,16 +289,12 @@ class ServerJob(StateMachineProcess):
                         # Error ==> Error, let's just exit
                         nextState = ServerJob.EXITING
                     elif msg == '':
-                        if lastState == ServerJob.STOPPING:
-                            # We got an error in stopping state? Better just stop.
-                            nextState = ServerJob.STOPPED
-                        elif lastState ==ServerJob.STOPPED:
-                            # We got an error in the stopped state? Better just exit.
+                        if lastState in [ServerJob.STOPPING, ServerJob.STOPPED]:
+                            # We got an error in the stopped or stopping state? Better just exit.
                             nextState = ServerJob.EXITING
                         else:
+                            self.exitFlag = True
                             nextState = ServerJob.STOPPING
-                    elif msg == ServerJob.STOP:
-                        nextState = ServerJob.STOPPING
                     elif msg == ServerJob.EXIT:
                         self.exitFlag = True
                         if lastState == ServerJob.STOPPING:

@@ -61,13 +61,16 @@ def initializeNeuralNetwork(neuralNetworkPath):
     clear_session()
     return load_model(neuralNetworkPath)
 
-def segmentVideo(neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex):
+def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None):
     # Save one or more predicted mask files for a given video and segmenting neural network
     #   neuralNetwork: A loaded neural network object
     #   videoPath: The path to the video file in question
     #   segSpec: a SegmentationSpecification object, which defines how to split the image up into parts to do separate segmentations
     #   maskSaveDirectory: The directory in which to save the completed binary mask predictions
     #   videoIndex: An integer indicating which video this is in the series of videos. This will be used to number the output masks
+    if None in [neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex]
+
+    if type(videoPath) !=
 
     # Open video for reading
     cap = cv2.VideoCapture(videoPath)
