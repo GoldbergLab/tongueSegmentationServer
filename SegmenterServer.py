@@ -103,6 +103,7 @@ def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
 
 class UpdaterDaemon(mp.Process):
     def __init__(self,
+                *args,
                 interval=5,             # Time in seconds to wait between update requests
                 port=80,                # Port to send request to
                 host="localhost",       # Host to send request to
