@@ -134,7 +134,7 @@ class SegmentationServer:
         self.jobQueue = odict() # List of job parameters for waiting jobs
 
         # Start daemon that periodically makes http request that prompts server to update its job queue
-        self.updaterDaemon = UpdaterDaemon(inverval=3)
+        self.updaterDaemon = UpdaterDaemon(interval=3)
         self.updateDaemon.start()
 
     def __call__(self, environ, start_fn):
