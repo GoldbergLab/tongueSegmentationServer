@@ -110,7 +110,7 @@ class UpdaterDaemon(mp.Process):
                 url="/updateQueue",     # Relative URL for triggering queue update
                 **kwargs):
         mp.Process.__init__(self, *args, daemon=True, **kwargs)
-        self.fullURL = "{host}:{port}{url}".format(host=host, port=port, url=url)
+        self.fullURL = "http://{host}:{port}{url}".format(host=host, port=port, url=url)
         logger.log(logging.INFO, "UpdaterDaemon ready with update url {url}".format(url=self.fullURL))
         self.interval = interval
 
