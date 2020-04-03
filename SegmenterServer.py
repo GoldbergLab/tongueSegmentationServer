@@ -135,7 +135,7 @@ class SegmentationServer:
 
         # Start daemon that periodically makes http request that prompts server to update its job queue
         self.updaterDaemon = UpdaterDaemon(interval=3)
-        self.updateDaemon.start()
+        self.updaterDaemon.start()
 
     def __call__(self, environ, start_fn):
         for path, handler in self.routes:
