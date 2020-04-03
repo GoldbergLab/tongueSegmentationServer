@@ -17,6 +17,7 @@ import numpy as np
 from scipy.io import loadmat
 import json
 from collections import OrderedDict as odict
+import multiprocessing as mp
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
