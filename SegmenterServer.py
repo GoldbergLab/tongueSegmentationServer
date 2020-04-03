@@ -111,6 +111,7 @@ class UpdaterDaemon(mp.Process):
                 **kwargs):
         mp.Process.__init__(self, *args, daemon=True, **kwargs)
         self.fullURL = "{host}:{port}{url}".format(host=host, port=port, url=url)
+        logger.log(logging.INFO, "UpdaterDaemon ready with update url {url}".format(url=self.fullURL))
         self.interval = interval
 
     def run(self):
