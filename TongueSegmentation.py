@@ -68,9 +68,11 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
     #   segSpec: a SegmentationSpecification object, which defines how to split the image up into parts to do separate segmentations
     #   maskSaveDirectory: The directory in which to save the completed binary mask predictions
     #   videoIndex: An integer indicating which video this is in the series of videos. This will be used to number the output masks
-    if None in [neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex]
+    if None in [neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex]:
+        raise ValueError('Missing argument')
 
-    if type(videoPath) !=
+    if type(videoPath) != type(str()):
+        videoPath = str(videoPath)
 
     # Open video for reading
     cap = cv2.VideoCapture(videoPath)
