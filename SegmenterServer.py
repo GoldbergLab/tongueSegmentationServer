@@ -132,7 +132,7 @@ class UpdaterDaemon(mp.Process):
             # use the opener to fetch a URL
             self.opener.open(self.fullURL)
             # urllib.request.urlopen(self.fullURL)
-            time.sleep(self.inverval)
+            time.sleep(self.interval)
 
 class SegmentationServer:
     newJobNum = itertools.count().__next__   # Source of this clever little idea: https://stackoverflow.com/a/1045724/1460057
