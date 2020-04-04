@@ -303,13 +303,13 @@ videosAhead=videosAhead
 
     def getQueuedJobNums(self):
         # Get a list of job nums for queued jobs, in the queue order
-        return [self.jobQueue['jobNum'] for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is None]
+        return [self.jobQueue[jobNum] for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is None]
     def getActiveJobNums(self):
         # Get a list of active job nums
-        return [self.jobQueue['jobNum'] for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None]
+        return [self.jobQueue[jobNum] for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None]
     def getAllJobNums(self):
         # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-        return [self.jobQueue['jobNum'] for jobNum in self.jobQueue]
+        return [self.jobQueue[jobNum] for jobNum in self.jobQueue]
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
