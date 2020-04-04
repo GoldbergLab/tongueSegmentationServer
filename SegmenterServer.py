@@ -390,7 +390,7 @@ videosAhead=videosAhead
             return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Click here to create a new job.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
 
         if self.jobQueue[jobNum]['job'] is not None:
-            jobState = self.jobs[jobNum].publishedStateVar.value
+            jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
             jobStateName = ServerJob.stateList[jobState]
             while True:
                 try:
