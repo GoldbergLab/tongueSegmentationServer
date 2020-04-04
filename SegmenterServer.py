@@ -207,7 +207,7 @@ class SegmentationServer:
     def countVideosRemaining(self):
         completedVideosAhead =  sum([len(self.jobQueue[jobNum]['completedVideoList']) for jobNum in self.jobQueue])
         queuedVideosAhead =     sum([len(self.jobQueue[jobNum]['videoList'])          for jobNum in self.jobQueue])
-        vidoesAhead = queuedVideosAhead - completedVideosAhead
+        videosAhead = queuedVideosAhead - completedVideosAhead
         return videosAhead
 
     def finalizeJobHandler(self, environ, start_fn):
