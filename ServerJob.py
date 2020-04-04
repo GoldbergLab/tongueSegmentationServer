@@ -95,7 +95,7 @@ class ServerJob(StateMachineProcess):
                 neuralNetworkPath = None,
                 jobNum = None,
                 **kwargs):
-        StateMachineProcess.__init__(self) #, **kwargs)
+        StateMachineProcess.__init__(self, logger=kwargs['logger']) #, **kwargs)
         # Store inputs in instance variables for later access
         self.jobNum = jobNum
         self.errorMessages = []
