@@ -443,7 +443,8 @@ videosAhead=videosAhead
             confInt=timeConfInt,
             videoList=completedVideoListHTML,
             jobStateName=jobStateName,
-            jobID=jobNum
+            jobID=jobNum,
+            estimatedTimeRemaining=estimatedTimeRemaining
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
