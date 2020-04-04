@@ -340,8 +340,8 @@ videosAhead=videosAhead
         # Handler for automated calls to update the queue
         self.updateJobQueue()
 
-        logger.log(logging.INFO, 'Got automated queue update reminder')
-
+        # logger.log(logging.INFO, 'Got automated queue update reminder')
+        #
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return []
 
