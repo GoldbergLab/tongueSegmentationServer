@@ -294,6 +294,7 @@ videosAhead=videosAhead
     def startJob(self, jobNum):
         self.jobQueue[jobNum]['job'] = ServerJob(
             verbose = 1,
+            logger=logger,
             **self.jobQueue[jobNum]
             )
 
@@ -441,7 +442,8 @@ videosAhead=videosAhead
             meanTime=meanTime,
             confInt=timeConfInt,
             videoList=completedVideoListHTML,
-            jobStateName=jobStateName
+            jobStateName=jobStateName,
+            jobID=jobNum
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
