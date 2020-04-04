@@ -57,8 +57,10 @@ for reqFolder in requiredSubfolders:
 
 # Set environment variables for authentication
 envVars = dict(os.environ)  # or os.environ.copy()
+USER='glab'
+PASSWORD='password'
 try:
-    envVars['WSGI_AUTH_CREDENTIALS']='glab:password'
+    envVars['WSGI_AUTH_CREDENTIALS']='{UN}:{PW}'.format(UN=USER, PW=PASSWORD)
 finally:
     os.environ.clear()
     os.environ.update(envVars)
@@ -114,9 +116,22 @@ class UpdaterDaemon(mp.Process):
         logger.log(logging.INFO, "UpdaterDaemon ready with update url {url}".format(url=self.fullURL))
         self.interval = interval
 
+        # create a password manager
+        password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        # Add the username and password.
+        # If we knew the realm, we could use it instead of None.
+        top_level_url = "http://{host}/".format(host=host)
+        password_mgr.add_password(None, top_level_url, USER, PASSWORD)
+        handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+
+        # create "opener" (OpenerDirector instance)
+        self.opener = urllib.request.build_opener(handler)
+
     def run(self):
         while True:
-            urllib.request.urlopen(self.fullURL)
+            # use the opener to fetch a URL
+            self.opener.open(self.fullURL)
+            # urllib.request.urlopen(self.fullURL)
             time.sleep(self.inverval)
 
 class SegmentationServer:
