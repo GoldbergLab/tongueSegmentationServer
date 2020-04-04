@@ -297,9 +297,9 @@ videosAhead=videosAhead
             **self.jobQueue[jobNum]
             )
 
-        newJob.start()
-        newJob.msgQueue.put((ServerJob.START, None))
-        newJob.msgQueue.put((ServerJob.PROCESS, None))
+        self.jobQueue[jobNum]['job'].start()
+        self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.START, None))
+        self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
 
     def getQueuedJobNums(self):
         # Get a list of job nums for queued jobs, in the queue order
@@ -414,7 +414,7 @@ videosAhead=videosAhead
             stdTime = "Unknown"
             estimatedTimeRemaining = "Unknown"
 
-        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobProgress[jobNum]['completedVideoList']]),
+        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']]),
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return ['''
