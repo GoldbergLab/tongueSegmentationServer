@@ -405,13 +405,13 @@ videosAhead=videosAhead
         if len(self.jobQueue[jobNum]['times']) > 0:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])
             meanTime = np.mean(deltaT)
-            stdTime = np.std(deltaT)
+            timeConfInt = np.std(deltaT)*1.96
             numVideos = len(self.jobQueue[jobNum]['videoList'])
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
             estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
         else:
             meanTime = "Unknown"
-            stdTime = "Unknown"
+            timeConfInt = "Unknown"
             estimatedTimeRemaining = "Unknown"
 
         completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']]),
@@ -439,7 +439,7 @@ videosAhead=videosAhead
 </html>
         '''.format(
             meanTime=meanTime,
-            confInt=stdTime*1.96,
+            confInt=timeConfInt,
             videoList=completedVideoListHTML,
             jobStateName=jobStateName
         ).encode('utf-8')]
