@@ -26,7 +26,7 @@
           </div>
         </div>
         <div class="row">
-          <div class="two columns">Job description:</div><div class="two columns">{jobName} </div>
+          <div class="three columns">Job description:</div><div class="two columns">{jobName} </div>
         </div>
         <div class="row">
           <details>
@@ -37,19 +37,19 @@
           </details>
         </div>
         <div class="row">
-          <div class="two columns">Chosen neural network:</div><div class="two columns">{networkName} </div>
+          <div class="three columns">Chosen neural network:</div><div class="two columns">{networkName} </div>
         </div>
         <div class="row">
-          <div class="two columns">Binary mask threshold:</div><div class="two columns">{binaryThreshold} </div>
+          <div class="three columns">Top mask vertical offset:</div><div class="two columns">{topOffset} </div>
         </div>
         <div class="row">
-          <div class="two columns">Top mask vertical offset:</div><div class="two columns">{topOffset} </div>
+          <div class="three columns">Top mask height:</div><div class="two columns">{topHeight} </div>
         </div>
         <div class="row">
-          <div class="two columns">Top mask height:</div><div class="two columns">{topHeight} </div>
+          <div class="three columns">Bottom mask height:</div><div class="two columns">{botHeight} </div>
         </div>
         <div class="row">
-          <div class="two columns">Bottom mask height:</div><div class="two columns">{botHeight} </div>
+          <div class="three columns">Binary mask threshold:</div><div class="two columns">{binaryThreshold} </div>
         </div>
         <form action="/confirmJob/{jobID}">
             <input class="button button-primary" type="submit" value="Confirm and enqueue job" />
