@@ -17,6 +17,10 @@
     <div class="container">
       <form action="/finalizeJob" method="POST">
         <div class="row">
+          <label class="three columns" for="jobName">Job name/description:</label>
+          <input class="nine columns" type="text" id="jobName" name="jobName" value="My job">
+        </div>
+        <div class="row">
           <label class="three columns" for="videoRootMountPoint">Video root mount point:</label>
           <select class="nine columns" name="videoRootMountPoint" id="videoRootMountPoint">
           {mopts}

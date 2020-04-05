@@ -221,7 +221,7 @@ class SegmentationServer:
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
 
-        keys = ['videoRootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'neuralNetwork', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold']
+        keys = ['videoRootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'neuralNetwork', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
         if not all([key in postData for key in keys]):
             # Not all form parameters got POSTed
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -242,6 +242,7 @@ class SegmentationServer:
         topOffset = postData['topOffset'][0]
         topHeight = postData['topHeight'][0]
         botHeight = postData['botHeight'][0]
+        jobName = postData['jobName'][0]
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[]
         )
@@ -254,6 +255,7 @@ class SegmentationServer:
         jobNum = SegmentationServer.newJobNum()
         self.jobQueue[jobNum] = dict(
             job=None,                               # Job process object
+            jobName=jobName,                        # Name/description of job
             jobNum=jobNum,                          # Job ID
             confirmed=False,                        # Has user confirmed params yet
             videoList=videoList,                    # List of video paths to process
@@ -274,6 +276,7 @@ topOffset=topOffset,
 topHeight=topHeight,
 botHeight=botHeight,
 jobID=jobNum,
+jobName=jobName,
 jobsAhead=jobsAhead,
 videosAhead=videosAhead
         ).encode('utf-8')]
@@ -426,7 +429,8 @@ videosAhead=videosAhead
             videoList=completedVideoListHTML,
             jobStateName=jobStateName,
             jobID=jobNum,
-            estimatedTimeRemaining=estimatedTimeRemaining
+            estimatedTimeRemaining=estimatedTimeRemaining,
+            jobName=self.jobQueue[jobNum]['jobName']
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):

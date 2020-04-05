@@ -1,6 +1,13 @@
 <html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="static/main.css">
+    <link rel="stylesheet" type="text/css" href="static/normalize.css">
+    <link rel="stylesheet" type="text/css" href="static/skeleton.css">
+    <link href='//fonts.googleapis.com/css?family=Raleway:400,300,600' rel='stylesheet' type='text/css'>
+  </head>
     <body>
         <h1>Job {jobID} is in state {jobStateName}.</h1>
+        <div>Description: {jobName}</div>
         <div>
             Processing time per video: {meanTime} &plusmn; {confInt}
         </div>

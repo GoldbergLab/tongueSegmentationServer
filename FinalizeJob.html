@@ -1,25 +1,60 @@
 <html>
-    <body>
-        <h1>Finalize job:</h1>
-        <div>
+  <head>
+    <link rel="stylesheet" type="text/css" href="static/main.css">
+    <link rel="stylesheet" type="text/css" href="static/normalize.css">
+    <link rel="stylesheet" type="text/css" href="static/skeleton.css">
+    <link href='//fonts.googleapis.com/css?family=Raleway:400,300,600' rel='stylesheet' type='text/css'>
+  </head>
+  <body>
+    <div class="section">
+      <div class="container">
+        <h1 class="section-heading">
+          Finalize job:
+        </h1>
+      </div>
+    </div>
+    <div class="section">
+      <div class="container">
+        <div class="row">
+          <div class='u-max-full-width'>
             There are {jobsAhead} jobs ahead of you with {videosAhead} remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
+          </div>
         </div>
-        <div>
+        <div class="row">
+          <div class='u-max-full-width'>
             Please review the following job specifications and confirm if correct:
+          </div>
         </div>
-        <details>
-            <summary>List of video files:</summary>
-            <ul>
-                {videoList}
-            </ul>
-        </details>
-        <div>Chosen neural network:    {networkName} </div>
-        <div>Binary mask threshold:    {binaryThreshold} </div>
-        <div>Top mask vertical offset: {topOffset} </div>
-        <div>Top mask height:          {topHeight} </div>
-        <div>Bottom mask height:       {botHeight} </div>
+        <div class="row">
+          <div class="two columns">Job description:</div><div class="two columns">{jobName} </div>
+        </div>
+        <div class="row">
+          <details>
+              <summary>List of video files:</summary>
+              <ul>
+                  {videoList}
+              </ul>
+          </details>
+        </div>
+        <div class="row">
+          <div class="two columns">Chosen neural network:</div><div class="two columns">{networkName} </div>
+        </div>
+        <div class="row">
+          <div class="two columns">Binary mask threshold:</div><div class="two columns">{binaryThreshold} </div>
+        </div>
+        <div class="row">
+          <div class="two columns">Top mask vertical offset:</div><div class="two columns">{topOffset} </div>
+        </div>
+        <div class="row">
+          <div class="two columns">Top mask height:</div><div class="two columns">{topHeight} </div>
+        </div>
+        <div class="row">
+          <div class="two columns">Bottom mask height:</div><div class="two columns">{botHeight} </div>
+        </div>
         <form action="/confirmJob/{jobID}">
-            <input type="submit" value="Confirm and enqueue job" />
+            <input class="button button-primary" type="submit" value="Confirm and enqueue job" />
         </form>
-    </body>
+      </div>
+    </div>
+  </body>
 </html>
