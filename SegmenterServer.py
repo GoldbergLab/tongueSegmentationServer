@@ -449,14 +449,13 @@ videosAhead=videosAhead
             with open('Index.html', 'r') as f: htmlTemplate = f.read()
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return [htmlTemplate.format(
-                nopts=networkOptionText,
-                mopts=mountOptionsText,
                 # query=queryString,
                 # mounts=mountList,
                 # environ=environ,
                 # input=postData,
                 # path=environ['PATH_INFO']
-                form=formText).encode('utf-8')]
+                nopts=networkOptionText,
+                mopts=mountOptionsText).encode('utf-8')]
         else:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
