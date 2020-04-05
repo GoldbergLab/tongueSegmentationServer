@@ -202,7 +202,13 @@ class SegmentationServer:
         else:
             logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            yield ['<html><body><h1>Error: Static file {name} not found!</body></html>'.format(name=requestedStaticFileRelativePath).encode('utf-8')]
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            yield [htmlTemplate.format(
+                errorTitle='Static file not found',
+                errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
+                linkURL='/',
+                linkAction='return to job creation page'
+                ).encode('utf-8')]
 
     def countVideosRemaining(self):
         completedVideosAhead =  sum([len(self.jobQueue[jobNum]['completedVideoList']) for jobNum in self.jobQueue])
@@ -219,7 +225,13 @@ class SegmentationServer:
         if not all([key in postData for key in keys]):
             # Not all form parameters got POSTed
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Bad setup parameters. <a href="/">Please click here to re-enter.</a></body></html>'.encode('utf-8')]
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            return [htmlTemplate.format(
+                errorTitle='Bad job creation parameters',
+                errorMsg='One or more job creation parameters missing!',
+                linkURL='/',
+                linkAction='retry job creation'
+                ).encode('utf-8')]
         videoRootMountPoint = postData['videoRootMountPoint'][0]
         videoDirs = postData['videoRoot'][0].strip().splitlines()
         videoFilter = postData['videoFilter'][0]
@@ -253,33 +265,8 @@ class SegmentationServer:
         )
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
-        return ['''
-<html>
-    <body>
-        <h1>Finalize job:</h1>
-        <div>
-            There are {jobsAhead} jobs ahead of you with {videosAhead} remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
-        </div>
-        <div>
-            Please review the following job specifications and confirm if correct:
-        </div>
-        <details>
-            <summary>List of video files:</summary>
-            <ul>
-                {videoList}
-            </ul>
-        </details>
-        <div>Chosen neural network:    {networkName} </div>
-        <div>Binary mask threshold:    {binaryThreshold} </div>
-        <div>Top mask vertical offset: {topOffset} </div>
-        <div>Top mask height:          {topHeight} </div>
-        <div>Bottom mask height:       {botHeight} </div>
-        <form action="/confirmJob/{jobID}">
-            <input type="submit" value="Confirm and enqueue job" />
-        </form>
-    </body>
-</html>
-        '''.format(
+        with open('FinalizeJob.html', 'r') as f: htmlTemplate = f.read()
+        return [htmlTemplate.format(
 videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
 networkName=networkName,
 binaryThreshold=binaryThreshold,
@@ -318,7 +305,14 @@ videosAhead=videosAhead
         if jobNum not in self.getQueuedJobNums():
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Invalid job ID {jobID}. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.format(jobID=jobNum).encode('utf-8')]
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            errorMsg = 'Invalid job ID {jobID}'.format(jobID=jobNum)
+            return [htmlTemplate.format(
+                errorTitle='Invalid job ID',
+                errorMsg=errorMsg,
+                linkURL='/',
+                linkAction='recreate job'
+                ).encode('utf-8')]
         # elif self.jobQueue[jobNum].exitcode is not None:
         #     # Error, process has terminated
         #     start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -387,7 +381,14 @@ videosAhead=videosAhead
         if jobNum not in self.getAllJobNums():
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return ['<html><body><h1>Error: Invalid job ID {jobID}. <a href="/">Click here to create a new job.</a></body></html>'.format(jobID=jobNum).encode('utf-8')]
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            errorMsg = 'Invalid job ID {jobID}'.format(jobID=jobNum)
+            return [htmlTemplate.format(
+                errorTitle='Invalid job ID',
+                errorMsg=errorMsg,
+                linkURL='/',
+                linkAction='create a new job'
+                ).encode('utf-8')]
 
         if self.jobQueue[jobNum]['job'] is not None:
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
@@ -418,27 +419,8 @@ videosAhead=videosAhead
         completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']]),
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
-        return ['''
-<html>
-    <body>
-        <h1>Job {jobID} is in state {jobStateName}.</h1>
-        <div>
-            Processing time per video: {meanTime} &plusmn; {confInt}
-        </div>
-        <div>
-            Estimated time remaining: {estimatedTimeRemaining}
-        </div>
-        <div>
-            <details>
-                <summary>List of completed video files:</summary>
-                <ul>
-                    {videoList}
-                </ul>
-            </details>
-        </div>
-    </body>
-</html>
-        '''.format(
+        with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
+        return [htmlTemplate.format(
             meanTime=meanTime,
             confInt=timeConfInt,
             videoList=completedVideoListHTML,
@@ -455,7 +437,6 @@ videosAhead=videosAhead
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
         mountOptionsText = self.createOptionList(mountPaths, mountURIs)
-        start_fn('200 OK', [('Content-Type', 'text/html')])
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
@@ -465,97 +446,40 @@ videosAhead=videosAhead
 
         if len(neuralNetworkList) > 0:
             networkOptionText = self.createOptionList(neuralNetworkList)
-            formText = '''
-<form action="/finalizeJob" method="POST">
-    <div class="field-wrap">
-        <label class="field-label" for="videoRootMountPoint">Video root mount point:</label>
-        <select class="field" name="videoRootMountPoint" id="videoRootMountPoint">
-        {mopts}
-        </select>
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="videoRoot">Video root directories (one per line):</label>
-        <textarea class="field" rows="3" cols="30" id="videoRoot" name="videoRoot" value=""></textarea>
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="videoFilter">Video filename filter:</label>
-        <input class="field" type="text" id="videoFilter" name="videoFilter" value="*">
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="maskSaveDirectory">Mask save directory:</label>
-        <input class="field" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
-    </div>
-    <div class="field-wrap"
-        <label class="field-label" for="pathStyleWrapper">Path style:</label>
-        <div id="pathStyleWrapper" class="field">
-            <div>
-              <input type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths"
-                     checked>
-              <label for="windowsStyle">Windows-style paths</label>
-            </div>
-            <div>
-              <input type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
-              <label for="posixStyle">Mac/Linux-style paths</label>
-            </div>
-        </div>
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="networkName">Neural network name:</label>
-        <select class="field" name="neuralNetwork" id="neuralNetwork">
-        {nopts}
-        </select>
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="topOffset">Top mask vertical offset:</label>
-        <input class="field" type="number" id="topOffset" name="topOffset" min="0" step="1" value="0">
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="topHeight">Top mask height:</label>
-        <input class="field" type="number" id="topHeight" name="topHeight" min="0" step="1" value="0">
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="botHeight">Top mask height:</label>
-        <input class="field" type="number" id="botHeight" name="botHeight" min="0" step="1" value="0">
-    </div>
-    <div class="field-wrap">
-        <label class="field-label" for="binaryThreshold">Binary Threshold:</label>
-        <input class="field" type="number" id="binaryThreshold" name="binaryThreshold" min="0" max="1" step="0.001" value="0.3">
-    </div>
-    <input class="field" type="submit" value="Initialize job">
-</form>'''.format(nopts=networkOptionText, mopts=mountOptionsText)
+            with open('Index.html', 'r') as f: htmlTemplate = f.read()
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            return [htmlTemplate.format(
+                nopts=networkOptionText,
+                mopts=mountOptionsText,
+                # query=queryString,
+                # mounts=mountList,
+                # environ=environ,
+                # input=postData,
+                # path=environ['PATH_INFO']
+                form=formText).encode('utf-8')]
         else:
-            formText = '''
-<h2>No neural networks found!
-Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.</h2>'''.format(nnsubfolder=NETWORKS_SUBFOLDER)
-
-        response = [
-        '''
-<html>
-<head>
-    <link rel="stylesheet" type="text/css" href="static/main.css">
-</head>
-<body>
-    <h1>
-        Segmentation Processor for Images of Tongues (SPIT)
-    </h1>
-    {form}
-    <p>Query = {query}</p>
-    <p>Mounts = {mounts}</p>
-    <p>Input = {input}</p>
-    <p>Path = {path}</p>
-    <p>environ = {environ}</p>
-</body>
-</html>
-        '''.format(query=queryString, mounts=mountList, environ=environ, input=postData, form=formText, path=environ['PATH_INFO']),
-        ]
-        response = [line.encode('utf-8') for line in response]
-        return response
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            errorMsg = 'No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER)
+            return [htmlTemplate.format(
+                errorTitle='Neural network error',
+                errorMsg=errorMsg,
+                linkURL='/',
+                linkAction='retry job creation once a neural network has been uploaded'
+                ).encode('utf-8')]
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
         requestedPath = environ['PATH_INFO']
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
-        return ['<html><body><h1>Error: Path {name} not recognized!</body></html>'.format(name=requestedPath).encode('utf-8')]
+        with open('Error.html', 'r') as f: htmlTemplate = f.read()
+        errorMsg = 'No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER)
+        return [htmlTemplate.format(
+            errorTitle='Path not recognized',
+            errorMsg='Path {name} not recognized!'.format(name=requestedPath),
+            linkURL='/',
+            linkAction='return to job creation page'
+            ).encode('utf-8')]
 
 if len(sys.argv) > 1:
     port = int(sys.argv[1])

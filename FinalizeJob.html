@@ -1,0 +1,25 @@
+<html>
+    <body>
+        <h1>Finalize job:</h1>
+        <div>
+            There are {jobsAhead} jobs ahead of you with {videosAhead} remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
+        </div>
+        <div>
+            Please review the following job specifications and confirm if correct:
+        </div>
+        <details>
+            <summary>List of video files:</summary>
+            <ul>
+                {videoList}
+            </ul>
+        </details>
+        <div>Chosen neural network:    {networkName} </div>
+        <div>Binary mask threshold:    {binaryThreshold} </div>
+        <div>Top mask vertical offset: {topOffset} </div>
+        <div>Top mask height:          {topHeight} </div>
+        <div>Bottom mask height:       {botHeight} </div>
+        <form action="/confirmJob/{jobID}">
+            <input type="submit" value="Confirm and enqueue job" />
+        </form>
+    </body>
+</html>

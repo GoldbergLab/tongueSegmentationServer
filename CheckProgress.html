@@ -1,0 +1,19 @@
+<html>
+    <body>
+        <h1>Job {jobID} is in state {jobStateName}.</h1>
+        <div>
+            Processing time per video: {meanTime} &plusmn; {confInt}
+        </div>
+        <div>
+            Estimated time remaining: {estimatedTimeRemaining}
+        </div>
+        <div>
+            <details>
+                <summary>List of completed video files:</summary>
+                <ul>
+                    {videoList}
+                </ul>
+            </details>
+        </div>
+    </body>
+</html>

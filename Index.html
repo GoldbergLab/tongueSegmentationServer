@@ -1,0 +1,72 @@
+<html>
+<head>
+    <link rel="stylesheet" type="text/css" href="static/main.css">
+</head>
+<body>
+    <h1>
+        Segmentation Processor for Images of Tongues (SPIT)
+    </h1>
+    <form action="/finalizeJob" method="POST">
+        <div class="field-wrap">
+            <label class="field-label" for="videoRootMountPoint">Video root mount point:</label>
+            <select class="field" name="videoRootMountPoint" id="videoRootMountPoint">
+            {mopts}
+            </select>
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="videoRoot">Video root directories (one per line):</label>
+            <textarea class="field" rows="3" cols="30" id="videoRoot" name="videoRoot" value=""></textarea>
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="videoFilter">Video filename filter:</label>
+            <input class="field" type="text" id="videoFilter" name="videoFilter" value="*">
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="maskSaveDirectory">Mask save directory:</label>
+            <input class="field" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
+        </div>
+        <div class="field-wrap"
+            <label class="field-label" for="pathStyleWrapper">Path style:</label>
+            <div id="pathStyleWrapper" class="field">
+                <div>
+                  <input type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths"
+                         checked>
+                  <label for="windowsStyle">Windows-style paths</label>
+                </div>
+                <div>
+                  <input type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
+                  <label for="posixStyle">Mac/Linux-style paths</label>
+                </div>
+            </div>
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="networkName">Neural network name:</label>
+            <select class="field" name="neuralNetwork" id="neuralNetwork">
+            {nopts}
+            </select>
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="topOffset">Top mask vertical offset:</label>
+            <input class="field" type="number" id="topOffset" name="topOffset" min="0" step="1" value="0">
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="topHeight">Top mask height:</label>
+            <input class="field" type="number" id="topHeight" name="topHeight" min="0" step="1" value="0">
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="botHeight">Top mask height:</label>
+            <input class="field" type="number" id="botHeight" name="botHeight" min="0" step="1" value="0">
+        </div>
+        <div class="field-wrap">
+            <label class="field-label" for="binaryThreshold">Binary Threshold:</label>
+            <input class="field" type="number" id="binaryThreshold" name="binaryThreshold" min="0" max="1" step="0.001" value="0.3">
+        </div>
+        <input class="field" type="submit" value="Initialize job">
+    </form>
+    <!-- <p>Query = {query}</p>
+    <p>Mounts = {mounts}</p>
+    <p>Input = {input}</p>
+    <p>Path = {path}</p>
+    <p>environ = {environ}</p> -->
+</body>
+</html>
