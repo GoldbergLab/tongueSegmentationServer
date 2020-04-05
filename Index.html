@@ -10,51 +10,51 @@
     </h1>
     <form action="/finalizeJob" method="POST">
         <div class="row">
-            <label class="one column" for="videoRootMountPoint">Video root mount point:</label>
-            <select class="one column" name="videoRootMountPoint" id="videoRootMountPoint">
+            <label class="six columns" for="videoRootMountPoint">Video root mount point:</label>
+            <select class="six columns" name="videoRootMountPoint" id="videoRootMountPoint">
             {mopts}
             </select>
         </div>
         <div class="row">
-            <label class="one column" for="videoRoot">Video root directories (one per line):</label>
-            <textarea class="one column" rows="3" cols="30" id="videoRoot" name="videoRoot" value=""></textarea>
+            <label class="six columns" for="videoRoot">Video root directories (one per line):</label>
+            <textarea class="six columns" rows="3" cols="30" id="videoRoot" name="videoRoot" value=""></textarea>
         </div>
         <div class="row">
-            <label class="one column" for="videoFilter">Video filename filter:</label>
-            <input class="one column" type="text" id="videoFilter" name="videoFilter" value="*">
+            <label class="six columns" for="videoFilter">Video filename filter:</label>
+            <input class="six columns" type="text" id="videoFilter" name="videoFilter" value="*">
         </div>
         <div class="row">
-            <label class="one column" for="maskSaveDirectory">Mask save directory:</label>
-            <input class="one column" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
+            <label class="six columns" for="maskSaveDirectory">Mask save directory:</label>
+            <input class="six columns" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
         </div>
         <div class="row"
-            <label class="one column" for="pathStyle">Path style:</label>
-            <input class="one column" type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths" checked>
-            <label class="one column" for="windowsStyle">Windows-style paths</label>
-            <input class="one column" type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
-            <label class="one column" for="posixStyle">Mac/Linux-style paths</label>
+            <label class="two columns" for="pathStyle">Path style:</label>
+            <input class="two columns" type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths" checked>
+            <label class="two columns" for="windowsStyle">Windows-style paths</label>
+            <input class="two columns" type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
+            <label class="two columns" for="posixStyle">Mac/Linux-style paths</label>
         </div>
         <div class="row">
-            <label class="one column" class="one column" for="networkName">Neural network name:</label>
-            <select class="one column" name="neuralNetwork" id="neuralNetwork">
+            <label class="six columns" class="six columns" for="networkName">Neural network name:</label>
+            <select class="six columns" name="neuralNetwork" id="neuralNetwork">
             {nopts}
             </select>
         </div>
         <div class="row">
-            <label class="one column" for="topOffset">Top mask vertical offset:</label>
-            <input class="one column" type="number" id="topOffset" name="topOffset" min="0" step="1" value="0">
+            <label class="six columns" for="topOffset">Top mask vertical offset:</label>
+            <input class="six columns" type="number" id="topOffset" name="topOffset" min="0" step="1" value="0">
         </div>
         <div class="row">
-            <label class="one column" for="topHeight">Top mask height:</label>
-            <input class="one column" type="number" id="topHeight" name="topHeight" min="0" step="1" value="0">
+            <label class="six columns" for="topHeight">Top mask height:</label>
+            <input class="six columns" type="number" id="topHeight" name="topHeight" min="0" step="1" value="0">
         </div>
         <div class="row">
-            <label class="one column" for="botHeight">Top mask height:</label>
-            <input class="one column" type="number" id="botHeight" name="botHeight" min="0" step="1" value="0">
+            <label class="six columns" for="botHeight">Top mask height:</label>
+            <input class="six columns" type="number" id="botHeight" name="botHeight" min="0" step="1" value="0">
         </div>
         <div class="row">
-            <label class="one column" for="binaryThreshold">Binary Threshold:</label>
-            <input class="one column" type="number" id="binaryThreshold" name="binaryThreshold" min="0" max="1" step="0.001" value="0.3">
+            <label class="six columns" for="binaryThreshold">Binary Threshold:</label>
+            <input class="six columns" type="number" id="binaryThreshold" name="binaryThreshold" min="0" max="1" step="0.001" value="0.3">
         </div>
         <input class="button-primary" type="submit" value="Initialize job">
     </form>
