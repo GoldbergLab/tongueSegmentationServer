@@ -449,11 +449,11 @@ videosAhead=videosAhead
             with open('Index.html', 'r') as f: htmlTemplate = f.read()
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return [htmlTemplate.format(
-                # query=queryString,
-                # mounts=mountList,
-                # environ=environ,
-                # input=postData,
-                # path=environ['PATH_INFO']
+                query=queryString,
+                mounts=mountList,
+                environ=environ,
+                input=postData,
+                path=environ['PATH_INFO'],
                 nopts=networkOptionText,
                 mopts=mountOptionsText).encode('utf-8')]
         else:
