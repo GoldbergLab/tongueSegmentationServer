@@ -1,6 +1,8 @@
 from waitress import serve
 from wsgi_basic_auth import BasicAuth
 import os
+if os.name == 'nt':
+    import win32net
 import traceback
 import logging
 import datetime as dt
@@ -161,16 +163,38 @@ class SegmentationServer:
                 return handler(environ, start_fn)
         return self.invalidHandler(environ, start_fn)
 
-    def getMountList(self):
-#        p = Popen('mount', stdout=PIPE, stderr=PIPE, shell=True)
-        p = Popen("mount | awk '$5 ~ /cifs|drvfs/ {print $0}'", stdout=PIPE, stderr=PIPE, shell=True)
-        stdout, stderr = p.communicate()
-        mountLines = stdout.decode('utf-8').strip().split('\n')
+    def getMountList(self, includePosixLocal=False):
         mounts = {}
-        for mountLine in mountLines:
-            elements = mountLine.split(' ')
-            mounts[elements[0]] = elements[2]
-        logger.log(logging.DEBUG, 'Got mount list: ' + str(mounts))
+        if os.name == 'nt':
+            # Get a list of drives
+            while 1:
+            (_drives, total, resume) = win32net.NetShareEnum (None, 2, resume)
+            for drive in _drives:
+                mounts[drive['netname']] = drive['path']
+            if not resume: break
+
+            # Add to that list the list of network shares
+            resume = 0
+            while 1:
+              (_drives, total, resume) = win32net.NetUseEnum (None, 0, resume)
+              for drive in _drives:
+                if drive['local']:
+                    mounts[drive['remote']] = drive['local']
+              if not resume: break
+        elif os.name == 'posix':
+            if includeLocal:
+                mounts['Local'] = 'LOCAL'
+    #        p = Popen('mount', stdout=PIPE, stderr=PIPE, shell=True)
+            p = Popen("mount | awk '$5 ~ /cifs|drvfs/ {print $0}'", stdout=PIPE, stderr=PIPE, shell=True)
+            stdout, stderr = p.communicate()
+            mountLines = stdout.decode('utf-8').strip().split('\n')
+            for mountLine in mountLines:
+                elements = mountLine.split(' ')
+                mounts[elements[0]] = elements[2]
+            logger.log(logging.DEBUG, 'Got mount list: ' + str(mounts))
+        else:
+            # Uh oh...
+            raise OSError('This software is only compatible with POSIX or Windows')
         return mounts
 
     def getNeuralNetworkList(self):
@@ -438,8 +462,7 @@ videosAhead=videosAhead
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
         neuralNetworkList = self.getNeuralNetworkList()
-        mountList = self.getMountList()
-        mountList['Local'] = 'LOCAL'
+        mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
         mountOptionsText = self.createOptionList(mountPaths, mountURIs)
