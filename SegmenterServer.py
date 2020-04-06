@@ -167,6 +167,7 @@ class SegmentationServer:
         mounts = {}
         if os.name == 'nt':
             # Get a list of drives
+            resume = 0
             while 1:
                 (_drives, total, resume) = win32net.NetShareEnum (None, 2, resume)
                 for drive in _drives:
