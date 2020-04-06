@@ -139,7 +139,8 @@ class UpdaterDaemon(mp.Process):
 
 class SegmentationServer:
     newJobNum = itertools.count().__next__   # Source of this clever little idea: https://stackoverflow.com/a/1045724/1460057
-    def __init__(self, webRoot='.'):
+    def __init__(self, port=80, webRoot='.'):
+        self.port = port
         self.routes = [
             ('/static/*',           self.staticHandler),
             ('/finalizeJob',        self.finalizeJobHandler),
@@ -153,7 +154,7 @@ class SegmentationServer:
         self.jobQueue = odict() # List of job parameters for waiting jobs
 
         # Start daemon that periodically makes http request that prompts server to update its job queue
-        self.updaterDaemon = UpdaterDaemon(interval=3)
+        self.updaterDaemon = UpdaterDaemon(interval=3, port=self.port)
         self.updaterDaemon.start()
 
     def __call__(self, environ, start_fn):
@@ -518,7 +519,7 @@ if __name__ == '__main__':
 
     logger.log(logging.INFO, 'Spinning up server!')
     while True:
-        s = SegmentationServer(webRoot=ROOT)
+        s = SegmentationServer(webRoot=ROOT, port=port)
         application = BasicAuth(s)
         try:
             logger.log(logging.INFO, 'Starting segmentation server...')
