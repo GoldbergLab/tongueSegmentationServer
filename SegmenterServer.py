@@ -486,19 +486,20 @@ videosAhead=videosAhead
             linkAction='return to job creation page'
             ).encode('utf-8')]
 
-if len(sys.argv) > 1:
-    port = int(sys.argv[1])
-else:
-    port = 80
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        port = int(sys.argv[1])
+    else:
+        port = 80
 
-logger.log(logging.INFO, 'Spinning up server!')
-while True:
-    s = SegmentationServer(webRoot=ROOT)
-    application = BasicAuth(s)
-    try:
-        logger.log(logging.INFO, 'Starting segmentation server...')
-        serve(application, host='0.0.0.0', port=port)
-        logger.log(logging.INFO, '...segmentation server started!')
-    except:
-        logger.exception('Server crashed!')
-    time.sleep(5)
+    logger.log(logging.INFO, 'Spinning up server!')
+    while True:
+        s = SegmentationServer(webRoot=ROOT)
+        application = BasicAuth(s)
+        try:
+            logger.log(logging.INFO, 'Starting segmentation server...')
+            serve(application, host='0.0.0.0', port=port)
+            logger.log(logging.INFO, '...segmentation server started!')
+        except:
+            logger.exception('Server crashed!')
+        time.sleep(5)
