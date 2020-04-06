@@ -10,6 +10,7 @@ import time
 import sys
 from subprocess import Popen, PIPE
 import urllib
+import requests
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
 from ServerJob import ServerJob
@@ -119,21 +120,22 @@ class UpdaterDaemon(mp.Process):
         logger.log(logging.INFO, "UpdaterDaemon ready with update url {url}".format(url=self.fullURL))
         self.interval = interval
 
-        # create a password manager
-        password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-        # Add the username and password.
-        # If we knew the realm, we could use it instead of None.
-        top_level_url = "http://{host}/".format(host=host)
-        password_mgr.add_password(None, top_level_url, USER, PASSWORD)
-        handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
-
-        # create "opener" (OpenerDirector instance)
-        self.opener = urllib.request.build_opener(handler)
+        # # create a password manager
+        # password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        # # Add the username and password.
+        # # If we knew the realm, we could use it instead of None.
+        # top_level_url = "http://{host}/".format(host=host)
+        # password_mgr.add_password(None, top_level_url, USER, PASSWORD)
+        # handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+        #
+        # # create "opener" (OpenerDirector instance)
+        # self.opener = urllib.request.build_opener(handler)
 
     def run(self):
         while True:
-            # use the opener to fetch a URL
-            self.opener.open(self.fullURL)
+            r = requests.get(self.fullURL, auth=(USER, PASSWORD))
+            # # use the opener to fetch a URL
+            # self.opener.open(self.fullURL)
             # urllib.request.urlopen(self.fullURL)
             time.sleep(self.interval)
 
