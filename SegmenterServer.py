@@ -156,7 +156,7 @@ class SegmentationServer:
     def __call__(self, environ, start_fn):
         for path, handler in self.routes:
             if fnmatch.fnmatch(environ['PATH_INFO'], path):
-                logger.log('Matched url {path} to route {route} with handler {handler}'.format(path=environ['PATH_INFO'], route=path, handler=handler))
+                logger.log(logging.INFO, 'Matched url {path} to route {route} with handler {handler}'.format(path=environ['PATH_INFO'], route=path, handler=handler))
                 return handler(environ, start_fn)
         return self.invalidHandler(environ, start_fn)
 
