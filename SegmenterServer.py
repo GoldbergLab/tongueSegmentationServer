@@ -53,6 +53,7 @@ staticFolder = rootPath / STATIC_SUBFOLDER
 requiredSubfolders = [networksFolder, logsFolder, staticFolder]
 for reqFolder in requiredSubfolders:
     if not reqFolder.exists():
+        logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
 
 # Set environment variables for authentication
