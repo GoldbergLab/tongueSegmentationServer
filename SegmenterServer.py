@@ -495,7 +495,7 @@ videosAhead=videosAhead
             completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).isoformat()
 
         if len(self.jobQueue[jobNum]['times']) > 1:
-            deltaT = np.diff(self.jobQueue[jobNum]['times'])
+            deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
             timeConfInt = np.std(deltaT)*1.96
             numVideos = len(self.jobQueue[jobNum]['videoList'])
