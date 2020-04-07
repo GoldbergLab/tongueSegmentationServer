@@ -129,6 +129,7 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
     # Make predictions and save to disk
     maskPredictions = {}
     for partName in segSpec.getPartNames():
+        print('Making prediction for {partName}'.format(partName=partName))
         # Convert image to uint8
         imageBuffers[partName] = imageBuffers[partName].astype(np.uint8)
         # Create predicted mask
