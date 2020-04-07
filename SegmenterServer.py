@@ -494,20 +494,23 @@ videosAhead=videosAhead
         if self.jobQueue[jobNum]['completionTime'] is not None:
             completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).isoformat()
 
+        numVideos = len(self.jobQueue[jobNum]['videoList'])
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
             timeConfInt = np.std(deltaT)*1.96
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
             if self.jobQueue[jobNum]['completionTime'] is None:
                 estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
             else:
                 estimatedTimeRemaining = "None"
+            percentComplete = "{percentComplete:.1}".format(percentComplete=percentComplete)
         else:
             meanTime = "Unknown"
             timeConfInt = "Unknown"
             estimatedTimeRemaining = "Unknown"
+            numCompletedVideos = "0"
+            percentComplete = "0"
 
         completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']])
 
@@ -545,7 +548,10 @@ Your job will be enqueued to start as soon as any/all previous jobs are done.'''
             startTime=startTime,
             completionTime=completionTime,
             exitCodePhrase=exitCodePhrase,
-            logHTML=logHTML
+            logHTML=logHTML,
+            percentComplete=,
+            numComplete=numCompletedVideos,
+            numTotal=numVideos
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
