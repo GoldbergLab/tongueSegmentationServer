@@ -509,7 +509,7 @@ videosAhead=videosAhead
             timeConfInt = "Unknown"
             estimatedTimeRemaining = "Unknown"
 
-        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']]),
+        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']])
 
         exitCode = self.jobQueue[jobNum]['exitCode']
         if exitCode == ServerJob.INCOMPLETE:
