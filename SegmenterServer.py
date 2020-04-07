@@ -437,7 +437,8 @@ videosAhead=videosAhead
                 try:
                     progress = self.jobQueue[jobNum]['job'].progressQueue.get(block=False)
                     self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
-                    self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                    if progress['lastProcessingStartTime'] is not None:
+                        self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
                 except queue.Empty:
                     # Got all progress
                     break
