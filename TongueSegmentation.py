@@ -86,7 +86,8 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
     # Prepare video buffer arrays to receive data
     imageBuffers = {}
     for partName in segSpec.getPartNames():
-        imageBuffer[partName] = np.zeros((nFrames,segSpec.getHeight(partName),segSpec.getWidth(partName),1))
+        logger.log(logging.INFO, ','.join(type(nFrames),type(segSpec.getHeight(partName)),type(segSpec.getWidth(partName))))
+        imageBuffers[partName] = np.zeros((nFrames,segSpec.getHeight(partName),segSpec.getWidth(partName),1))
 
     k=0
     while(True):
@@ -111,9 +112,9 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
     maskPredictions = {}
     for partName in segSpec.getPartNames():
         # Convert image to uint8
-        imageBuffer[partName] = imageBuffer[partName].astype(np.uint8)
+        imageBuffers[partName] = imageBuffers[partName].astype(np.uint8)
         # Create predicted mask
-        maskPredictions[partName] = neuralNetwork.predict(imageBuffer[partName])
+        maskPredictions[partName] = neuralNetwork.predict(imageBuffers[partName])
         # Threshold mask to make it binary
         maskPredictionsBinary[partName] = maskPredictions[partName] > 0.3
         # Generate save name for mask
