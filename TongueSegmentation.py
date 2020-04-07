@@ -132,12 +132,10 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
         print('Making prediction for {partName}'.format(partName=partName))
         # Convert image to uint8
         imageBuffers[partName] = imageBuffers[partName].astype(np.uint8)
-        # Create predicted mask
-        maskPredictions[partName] = neuralNetwork.predict(imageBuffers[partName])
-        # Threshold mask to make it binary
-        maskPredictionsBinary[partName] = maskPredictions[partName] > 0.3
+        # Create predicted mask and threshold to make it binary
+        maskPredictions[partName] = neuralNetwork.predict(imageBuffers[partName]) > 0.3
         # Generate save name for mask
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
         # Save mask to disk
-        savemat(savePath,{'maskPredictions':maskPredictionsBinary[partName]},do_compression=True)
+        savemat(savePath,{'maskPredictions':maskPredictions[partName]},do_compression=True)
