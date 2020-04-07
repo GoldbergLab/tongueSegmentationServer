@@ -454,7 +454,7 @@ videosAhead=videosAhead
 
     def formatLogHTML(self, log):
         logHTMLList = []
-        for logEntry in log
+        for logEntry in log:
             logHTMLList.append('<p>{logEntry}</p>'.format(logEntry=logEntry))
         logHTML = "\n".join(logHTMLList)
         return logHTML
