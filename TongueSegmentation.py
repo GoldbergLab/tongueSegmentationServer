@@ -48,10 +48,10 @@ class SegmentationSpecification:
             return (y, y+h)
 
     def getXSlice(self, partName):
-        return slice(*self.getXLim())
+        return slice(*self.getXLim(partName))
 
     def getYSlice(self, partName):
-        return slice(*self.getYLim())
+        return slice(*self.getYLim(partName))
 
     def getHeight(self, partName):
         return self._specs[partName][1]
