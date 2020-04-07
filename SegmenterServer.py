@@ -23,6 +23,9 @@ from collections import OrderedDict as odict
 import multiprocessing as mp
 import itertools
 
+# Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
 LOGS_SUBFOLDER = 'logs'
@@ -274,7 +277,7 @@ class SegmentationServer:
         botHeight = postData['botHeight'][0]
         jobName = postData['jobName'][0]
         segSpec = SegmentationSpecification(
-            partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[]
+            partNames=['Bot', 'Top'], widths=[None, None], heights=[int(botHeight), int(topHeight)], xOffsets=[0, 0], yOffsets=[0, 0]
         )
         videoList = getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter=videoFilter)
 

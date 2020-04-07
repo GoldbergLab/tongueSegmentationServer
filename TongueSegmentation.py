@@ -16,8 +16,13 @@ class SegmentationSpecification:
     # Provide a list of part names, and correspondingly indexed lists of part widths, heights, xOffsets, and yOffsets
     # Width or height entries may be None, which means the part extends the maximum distance to the edge of the frame
     def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[]):
+        N = len(partNames)
+        # Fill xOffets with zeros
+        xOffsets = xOffsets + [0 for k in range(N - len(xOffsets))]
+        yOffsets = yOffsets + [0 for k in range(N - len(yOffsets))]
+
         self.partNames = partNames
-        self._specs = dict(zip(partNames, zip(widths, heights)))
+        self._specs = dict(zip(partNames, zip(widths, heights, xOffsets, yOffsets)))
 
     def getPartNames(self):
         return self.partNames
@@ -57,6 +62,19 @@ class SegmentationSpecification:
     def getYOffset(self, partName):
         return self._specs[partName][3]
 
+    def initialize(self, vcap):
+        # Initialize segspec with video information, so we can give more informed output
+        wFrame = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        hFrame = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        for partName in self._specs:
+            [w, h, x, y] = self._specs[partName]
+            if w is None:
+                w = wFrame - x
+            if h is None:
+                h = hFrame - y
+            self._specs[partName] = [w, h, x, y]
+
+
 def initializeNeuralNetwork(neuralNetworkPath):
     clear_session()
     return load_model(neuralNetworkPath)
@@ -80,8 +98,9 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
 #    cap.open()
 
     nFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    wFrame = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    hFrame = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Initialize segSpec with video file:
+    segSpec.initialize(cap)
 
     # Prepare video buffer arrays to receive data
     imageBuffers = {}
