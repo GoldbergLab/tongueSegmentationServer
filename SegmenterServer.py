@@ -392,11 +392,11 @@ videosAhead=videosAhead
                 pass
             elif jobState == ServerJob.ERROR:
                 job.terminate()
-                self.removeFinishedJob()
+                self.removeFinishedJob(jobNum)
             elif jobState == ServerJob.EXITING:
                 pass
             elif jobState == ServerJob.DEAD:
-                self.removeFinishedJob()
+                self.removeFinishedJob(jobNum)
             elif jobState == -1:
                 pass
 
