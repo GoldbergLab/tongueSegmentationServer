@@ -118,8 +118,8 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
                 # Write the frame part into the video buffer array
-                h, w, _ = frame[yS, xS, 1].shape
-                imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, h, w, 1)
+#                h, w = frame[yS, xS, 1].shape
+                imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, segSpec.getHeight(partName), segSpec.getWidth(partName), 1)
             k = k+1
         # Break the loop
         else:
