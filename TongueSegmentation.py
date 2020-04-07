@@ -105,7 +105,6 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
     # Prepare video buffer arrays to receive data
     imageBuffers = {}
     for partName in segSpec.getPartNames():
-        print(type(nFrames),type(segSpec.getHeight(partName)),type(segSpec.getWidth(partName)))
         imageBuffers[partName] = np.zeros((nFrames,segSpec.getHeight(partName),segSpec.getWidth(partName),1))
 
     k=0
