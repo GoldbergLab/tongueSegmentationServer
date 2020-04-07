@@ -393,10 +393,12 @@ videosAhead=videosAhead
             elif jobState == ServerJob.ERROR:
                 job.terminate()
                 self.removeFinishedJob(jobNum)
+                logger.log(logging.INFO, "Removing job {jobNum} in error state".format(jobNum=jobNum))
             elif jobState == ServerJob.EXITING:
                 pass
             elif jobState == ServerJob.DEAD:
                 self.removeFinishedJob(jobNum)
+                logger.log(logging.INFO, "Removing job {jobNum} in dead state".format(jobNum=jobNum))
             elif jobState == -1:
                 pass
 
