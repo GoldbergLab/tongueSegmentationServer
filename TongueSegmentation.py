@@ -76,7 +76,8 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
 
     # Open video for reading
     cap = cv2.VideoCapture(videoPath)
-    cap.open()
+#   This appears to not be necessary?
+#    cap.open()
 
     nFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     wFrame = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
