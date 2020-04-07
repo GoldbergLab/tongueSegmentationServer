@@ -437,7 +437,7 @@ videosAhead=videosAhead
         else:
             jobStateName = "ENQUEUED"
 
-        if len(self.jobQueue[jobNum]['times']) > 0:
+        if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])
             meanTime = np.mean(deltaT)
             timeConfInt = np.std(deltaT)*1.96
