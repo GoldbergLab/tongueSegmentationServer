@@ -118,11 +118,11 @@ class ServerJob(StateMachineProcess):
             else:
                 if self.verbose >= 0: self.log("Param not settable: {key}={val}".format(key=key, val=params[key]))
 
-    def sendProgress(self, finishedVideoList, videoList, currentVideo, processingStartTime):
+    def sendProgress(self, currentVideo, processingStartTime) #, finishedVideoList, videoList, currentVideo, processingStartTime):
         # Send progress to server:
         progress = dict(
-            videosCompleted=len(finishedVideoList),
-            videosRemaining=len(videoList),
+            # videosCompleted=len(finishedVideoList),
+            # videosRemaining=len(videoList),
             lastCompletedVideoPath=currentVideo,
             lastProcessingStartTime=processingStartTime
         )
@@ -178,7 +178,8 @@ class ServerJob(StateMachineProcess):
                     videoIndex = 0
                     processingStartTime = None
                     if self.verbose >= 3: self.log('Server job initialized!')
-                    self.sendProgress(finishedVideoList, self.videoList, None, processingStartTime)
+#                    self.sendProgress(finishedVideoList, self.videoList, None, processingStartTime)
+                    self.sendProgress(None, processingStartTime)
 
                     # CHECK FOR MESSAGES
                     try:
@@ -234,7 +235,8 @@ class ServerJob(StateMachineProcess):
                     segmentVideo(neuralNetwork=neuralNetwork, videoPath=currentVideo, segSpec=self.segSpec, maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex)
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
-                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
+#                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
+                    self.sendProgress(currentVideo, processingStartTime)
                     if self.verbose >= 3: self.log('Server job progress: {prog}'.format(prog=progress))
                     # Are we done?
                     if len(self.videoList) == 0:
