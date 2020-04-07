@@ -303,7 +303,7 @@ class SegmentationServer:
             startTime=None,                         # Time job was started
             completionTime=None,                    # Time job was completed
             log=[],                                 # List of log output from job
-            exitCode=ServerJob.Incomplete           # Job exit code
+            exitCode=ServerJob.INCOMPLETE           # Job exit code
         )
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
