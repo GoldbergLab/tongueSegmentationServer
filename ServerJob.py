@@ -39,7 +39,8 @@ class StateMachineProcess(mp.Process):
                 L.release()
 
     def log(self, msg, lvl=logging.INFO):
-        self.logger.log(logging.INFO, msg)
+        print('SERVER_JOB: ', msg)
+#        self.logger.log(logging.INFO, msg)
 #        self.logBuffer.append((msg, lvl))
 
     def flushLogBuffer(self):
