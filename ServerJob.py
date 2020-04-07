@@ -41,16 +41,16 @@ class StateMachineProcess(mp.Process):
     def log(self, msg, lvl=logging.INFO):
         print('SERVER_JOB: ', msg)
 #        self.logger.log(logging.INFO, msg)
-#        self.logBuffer.append((msg, lvl))
+        self.logBuffer.append(msg) #(msg, lvl))
 
-    def flushLogBuffer(self):
-        if len(self.logBuffer) > 0:
-            lines = []
-            for msg, lvl in self.logBuffer:
-                lines.append(msg)
-            msgs = "\n".join(lines)
-            self.logger.log(logging.INFO, msgs)
-        self.logBuffer = []
+    # def flushLogBuffer(self):
+    #     if len(self.logBuffer) > 0:
+    #         lines = []
+    #         for msg, lvl in self.logBuffer:
+    #             lines.append(msg)
+    #         msgs = "\n".join(lines)
+    #         self.logger.log(logging.INFO, msgs)
+    #     self.logBuffer = []
 
 class ServerJob(StateMachineProcess):
     # Class that the server can use to spawn a separate process state machine
@@ -76,6 +76,16 @@ class ServerJob(StateMachineProcess):
         ERROR :'ERROR',
         EXITING :'EXITING',
         DEAD :'DEAD'
+    }
+
+    # Exit codes:
+    INCOMPLETE = -1
+    SUCCESS = 0
+    FAILED = 1
+    exitCodeList = {
+        INCOMPLETE: 'Incomplete',
+        SUCCESS: 'Success',
+        FAILED: 'Failed'
     }
 
     #messages:
@@ -108,6 +118,7 @@ class ServerJob(StateMachineProcess):
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
         self.neuralNetworkPath = neuralNetworkPath
+        self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
 
     def setParams(self, **params):
@@ -118,14 +129,17 @@ class ServerJob(StateMachineProcess):
             else:
                 if self.verbose >= 0: self.log("Param not settable: {key}={val}".format(key=key, val=params[key]))
 
-    def sendProgress(self, currentVideo, processingStartTime) #, finishedVideoList, videoList, currentVideo, processingStartTime):
+    def sendProgress(self, currentVideo, processingStartTime): #, finishedVideoList, videoList, currentVideo, processingStartTime):
         # Send progress to server:
         progress = dict(
             # videosCompleted=len(finishedVideoList),
             # videosRemaining=len(videoList),
+            log=self.logBuffer,
+            exitCode=self.exitCode,
             lastCompletedVideoPath=currentVideo,
             lastProcessingStartTime=processingStartTime
         )
+        self.logBuffer = []
         self.progressQueue.put(progress)
 
     def run(self):
@@ -327,14 +341,16 @@ class ServerJob(StateMachineProcess):
                 self.log("msg={msg}, exitFlag={exitFlag}".format(msg=msg, exitFlag=self.exitFlag))
                 self.log(r'*********************************** /\ {ID} {state} /\ ********************************************'.format(ID=self.ID, state=self.stateList[state]))
 
-            self.flushLogBuffer()
+#            self.flushLogBuffer()
 
             # Prepare to advance to next state
             lastState = state
             state = nextState
 
+        self.sendProgress(None, None)
+
         clearQueue(self.msgQueue)
         if self.verbose >= 1: self.log("ServerJob process STOPPED")
 
-        self.flushLogBuffer()
+#        self.flushLogBuffer()
         self.updatePublishedState(self.DEAD)

@@ -155,8 +155,10 @@ class SegmentationServer:
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
-        self.maxActiveJobs = 1        # Maximum # of jobs allowed to be running at once
-        self.jobQueue = odict() # List of job parameters for waiting jobs
+        self.maxActiveJobs = 1          # Maximum # of jobs allowed to be running at once
+        self.jobQueue = odict()         # List of job parameters for waiting jobs
+
+        self.cleanupTime = 86400        # Number of seconds to wait before deleting finished/dead jobs
 
         # Start daemon that periodically makes http request that prompts server to update its job queue
         self.updaterDaemon = UpdaterDaemon(interval=3, port=self.port)
@@ -296,7 +298,12 @@ class SegmentationServer:
             segmentationSpecification=segSpec,      # SegSpec
             neuralNetworkPath=networkName,          # Path to chosen neural network
             completedVideoList=[],                  # List of processed videos
-            times=[]                                # List of video processing start times
+            times=[],                               # List of video processing start times
+            creationTime=time.time_ns(),            # Time job was created
+            startTime=None,                         # Time job was started
+            completionTime=None,                    # Time job was completed
+            log=[],                                 # List of log output from job
+            exitCode=ServerJob.Incomplete           # Job exit code
         )
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
@@ -324,13 +331,17 @@ videosAhead=videosAhead
         self.jobQueue[jobNum]['job'].start()
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.START, None))
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
+        self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
     def getQueuedJobNums(self):
         # Get a list of job nums for queued jobs, in the queue order
         return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is None]
     def getActiveJobNums(self):
         # Get a list of active job nums
-        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None]
+        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is None]
+    def getCompletedJobNums(self):
+        # Get a list of completed job nums
+        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is not None]
     def getAllJobNums(self):
         # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
         return [jobNum for jobNum in self.jobQueue]
@@ -364,8 +375,13 @@ videosAhead=videosAhead
         start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
         return []
 
-    def removeFinishedJob(self, jobNum):
-        del self.jobQueue[jobNum]
+    def removeFinishedJob(self, jobNum, waitingPeriod=0):
+        # waitingPeriod = amount of time in seconds to wait after job completionTime before removing from queue
+        completionTime = self.jobQueue[jobNum]['completionTime']
+        if completionTime is None or (time.time_ns() - completionTime) / 1000000 > waitingPeriod:
+            # Either completion time has not been set, or the requisite waiting period has elapsed.
+            #   Delete job.
+            del self.jobQueue[jobNum]
 
     def updateJobQueueHandler(self, environ, start_fn):
         # Handler for automated calls to update the queue
@@ -382,6 +398,8 @@ videosAhead=videosAhead
             # Loop over active jobs, see if they're done, and pop them off if so
             job = self.jobQueue[jobNum]['job']
             jobState = job.publishedStateVar.value
+            # Update progress
+            self.updateJobProgress(jobNum)
 #            jobStateName = ServerJob.stateList[jobState]
             if jobState == ServerJob.STOPPED:
                 pass
@@ -394,13 +412,15 @@ videosAhead=videosAhead
             elif jobState == ServerJob.STOPPING:
                 pass
             elif jobState == ServerJob.ERROR:
-                job.terminate()
-                self.removeFinishedJob(jobNum)
-                logger.log(logging.INFO, "Removing job {jobNum} in error state".format(jobNum=jobNum))
+                pass
+                # job.terminate()
+                # self.removeFinishedJob(jobNum)
+                # logger.log(logging.INFO, "Removing job {jobNum} in error state".format(jobNum=jobNum))
             elif jobState == ServerJob.EXITING:
                 pass
             elif jobState == ServerJob.DEAD:
-                self.removeFinishedJob(jobNum)
+                self.jobQueue[jobNum]['completionTime'] = time.time_ns()
+                self.removeFinishedJob(jobNum, waitingPeriod=self.cleanupTime)
                 logger.log(logging.INFO, "Removing job {jobNum} in dead state".format(jobNum=jobNum))
             elif jobState == -1:
                 pass
@@ -412,6 +432,33 @@ videosAhead=videosAhead
                     # This is the next confirmed job - start it
                     self.startJob(jobNum)
                     break;
+
+    def updateJobProgress(self, jobNum):
+        if jobNum in self.jobQueue and self.jobQueue[jobNum]['job'] is not None:
+            while True:
+                try:
+                    progress = self.jobQueue[jobNum]['job'].progressQueue.get(block=False)
+                    # Get any new log output from job
+                    self.jobQueue[jobNum]['log'].extend(progress['log'])
+                    # Get updated exit code from job
+                    self.jobQueue[jobNum]['exitCode'] = progress['exitCode']
+                    # Get the path to the last video the job has completed
+                    if progress['lastCompletedVideoPath'] is not None:
+                        self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
+                    # Get the time when the last video started processing
+                    if progress['lastProcessingStartTime'] is not None:
+                        self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                except queue.Empty:
+                    # Got all progress
+                    break
+
+    def formatLogHTML(self, log):
+        logHTMLList = []
+        for logEntry in log
+            logHTMLList.append('<p>{logEntry}</p>'.format(logEntry=logEntry))
+        logHTML = "\n".join(logHTMLList)
+        return logHTML
+
 
     def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
@@ -433,17 +480,19 @@ videosAhead=videosAhead
         if self.jobQueue[jobNum]['job'] is not None:
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
             jobStateName = ServerJob.stateList[jobState]
-            while True:
-                try:
-                    progress = self.jobQueue[jobNum]['job'].progressQueue.get(block=False)
-                    self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
-                    if progress['lastProcessingStartTime'] is not None:
-                        self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
-                except queue.Empty:
-                    # Got all progress
-                    break
+            self.updateJobProgress(jobNum)
         else:
             jobStateName = "ENQUEUED"
+
+        creationTime = ""
+        startTime = "Not started yet"
+        completionTime = "Not complete yet"
+        if self.jobQueue[jobNum]['creationTime'] is not None:
+            creationTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['creationTime']/1000000000).isoformat()
+        if self.jobQueue[jobNum]['startTime'] is not None:
+            startTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['startTime']/1000000000).isoformat()
+        if self.jobQueue[jobNum]['completionTime'] is not None:
+            completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).isoformat()
 
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])
@@ -451,13 +500,36 @@ videosAhead=videosAhead
             timeConfInt = np.std(deltaT)*1.96
             numVideos = len(self.jobQueue[jobNum]['videoList'])
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
+            if self.jobQueue[jobNum]['completionTime'] is None:
+                estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
+            else:
+                estimatedTimeRemaining = "None"
         else:
             meanTime = "Unknown"
             timeConfInt = "Unknown"
             estimatedTimeRemaining = "Unknown"
 
         completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']]),
+
+        exitCode = self.jobQueue[jobNum]['exitCode']
+        if exitCode == ServerJob.INCOMPLETE:
+            if self.jobQueue[jobNum]['startTime'] is None:
+                jobsAhead = len(self.jobQueue)
+                videosAhead = self.countVideosRemaining()
+                exitCodePhrase = '''
+is enqueued, but not started. There are <strong>{jobsAhead} jobs</strong>
+ahead of you with <strong>{videosAhead} videos</strong> remaining.
+Your job will be enqueued to start as soon as any/all previous jobs are done.'''.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
+            else:
+                exitCodePhrase = 'is in progress!'
+        elif exitCode == ServerJob.SUCCESS:
+            exitCodePhrase = 'is <strong>complete!</strong>'
+        elif exitCode == ServerJob.FAILED:
+            exitCodePhrase = 'has exited with errors :(  Please see debug output below.'
+        else:
+            exitCodePhrase = 'is in an unknown exit code state...'
+
+        logHTML = self.formatLogHTML(self.jobQueue[jobNum]['log'])
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
@@ -468,7 +540,12 @@ videosAhead=videosAhead
             jobStateName=jobStateName,
             jobID=jobNum,
             estimatedTimeRemaining=estimatedTimeRemaining,
-            jobName=self.jobQueue[jobNum]['jobName']
+            jobName=self.jobQueue[jobNum]['jobName'],
+            creationTime=creationTime,
+            startTime=startTime,
+            completionTime=completionTime,
+            exitCodePhrase=exitCodePhrase,
+            logHTML=logHTML
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):

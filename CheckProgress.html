@@ -8,8 +8,19 @@
     <body>
       <div class="section">
         <div class="container">
-          <h1>Job {jobID} is in state {jobStateName}.</h1>
+          <h1>Job {jobID} {exitCodePhrase}</h1>
+          <h2>Job state is {jobStateName}.</h2>
+          <h2>Job info:</h2>
           <div>Description: {jobName}</div>
+          <div>
+            Job creation time: {creationTime}
+          </div>
+          <div>
+            Job start time: {startTime}
+          </div>
+          <div>
+            Job end time: {completionTime}
+          </div>
           <div>
             Processing time per video: {meanTime} &plusmn; {confInt}
           </div>
@@ -22,6 +33,10 @@
                 <ul>
                   {videoList}
                 </ul>
+            </details>
+            <details>
+              <summary>Debug output:</summary>
+                {logHTML}
             </details>
           </div>
         </div>
