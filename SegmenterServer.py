@@ -470,12 +470,15 @@ videosAhead=videosAhead
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
         mountOptionsText = self.createOptionList(mountPaths, mountURIs)
+        logger.log(logging.INFO, 'rootHandler 1')
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
             queryString = 'None'
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        logger.log(logging.INFO, 'Creating return data')
 
         if len(neuralNetworkList) > 0:
             networkOptionText = self.createOptionList(neuralNetworkList)
