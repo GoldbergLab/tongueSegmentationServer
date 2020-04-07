@@ -175,7 +175,7 @@ class SegmentationServer:
                 (_drives, total, resume) = win32net.NetShareEnum (None, 2, resume)
                 for drive in _drives:
                     mounts[drive['netname']] = drive['path']
-                if not resume: break
+            if not resume: break
 
             # Add to that list the list of network shares
             resume = 0
@@ -184,7 +184,7 @@ class SegmentationServer:
                 for drive in _drives:
                     if drive['local']:
                         mounts[drive['remote']] = drive['local']
-                    if not resume: break
+                if not resume: break
         elif os.name == 'posix':
             if includeLocal:
                 mounts['Local'] = 'LOCAL'
