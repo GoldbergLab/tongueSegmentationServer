@@ -323,7 +323,7 @@ class SegmentationServer:
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
         maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)
         # Generate list of videos
-        videoList = self.getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
+        videoList = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
         jobsAhead = len(self.jobQueue)
         videosAhead = self.countVideosRemaining()
