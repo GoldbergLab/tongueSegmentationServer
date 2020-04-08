@@ -546,7 +546,7 @@ videosAhead=videosAhead
             timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
             if self.jobQueue[jobNum]['completionTime'] is None:
-                estimatedSecondsRemaining = (numVideos - numCompletedVideos) * meanTime)
+                estimatedSecondsRemaining = (numVideos - numCompletedVideos) * meanTime
                 days, remainder = divmod(estimatedSecondsRemaining, 86400)
                 hours, remainder = divmod(remainder, 3600)
                 minutes, seconds = divmod(remainder, 60)
