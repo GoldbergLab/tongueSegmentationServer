@@ -255,17 +255,6 @@ class SegmentationServer:
                 start_fn('200 OK', [('Content-Type', "image/x-icon")])
                 with requestedStaticFilePath.open('rb') as f:
                     yield f.read()
-            else:
-                logger.log(logging.INFO, 'Invalid static file location: {s}'.format(s=subfolder))
-                start_fn('404 Not Found', [('Content-Type', 'text/html')])
-                with open('Error.html', 'r') as f: htmlTemplate = f.read()
-                yield [htmlTemplate.format(
-                    errorTitle='Static file not found',
-                    errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
-                    linkURL='/',
-                    linkAction='return to job creation page'
-                    ).encode('utf-8')]
-
         else:
             logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
