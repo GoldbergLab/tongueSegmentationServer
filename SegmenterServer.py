@@ -72,7 +72,7 @@ finally:
     os.environ.clear()
     os.environ.update(envVars)
 
-def reRootDirectories(rootMountPoint, pathStyle, directory):
+def reRootDirectory(rootMountPoint, pathStyle, directory):
     #   rootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
     #   directories - a list of strings representing directory paths to re-root
     #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
@@ -321,7 +321,7 @@ class SegmentationServer:
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
-        maskSaveDirectory = reRootDirectories(rootMountPoint, pathStyle, maskSaveDirectory)[0]
+        maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)[0]
         # Generate list of videos
         videoList = self.getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
