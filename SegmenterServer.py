@@ -435,10 +435,22 @@ videosAhead=videosAhead
 
     def removeJob(self, jobNum, waitingPeriod=0):
         # waitingPeriod = amount of time in seconds to wait after job completionTime before removing from queue
-        completionTime = self.jobQueue[jobNum]['completionTime']
-        if (self.jobQueue[jobNum]['confirmed'] and completionTime is None) or (time.time_ns() - completionTime) / 1000000 > waitingPeriod:
-            # Either completion time has not been set, or the requisite waiting period has elapsed.
-            #   Delete job.
+        expired = False
+        if self.jobQueue[jobNum]['confirmed']:
+            if self.jobQueue[jobNum]['completionTime'] is not None:
+                if (time.time_ns() - self.jobQueue[jobNum]['completionTime']) / 1000000000 > waitingPeriod:
+                    expired = True
+        else:
+            if self.jobQueue[jobNum]['creationTime'] is not None:
+                if (time.time_ns() - self.jobQueue[jobNum]['creationTime']) / 1000000000 > waitingPeriod:
+                    expired = True
+            else:
+                expire = True
+                # Creation time should never be None
+                raise ValueError('Job creation time should never be None')
+
+        if expired:
+            # Delete expired job
             del self.jobQueue[jobNum]
 
     def updateJobQueueHandler(self, environ, start_fn):
