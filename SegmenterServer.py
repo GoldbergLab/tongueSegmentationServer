@@ -241,18 +241,12 @@ class SegmentationServer:
                 ).encode('utf-8')]
         else:
             subfolder = environ['PATH_INFO'].split('/')[-2]
-            if subfolder == "css":
-                mimeType = "text/css"
-                readMethod = 'r'
-            elif subfolder == "favicon":
-                mimeType = "image/x-icon"
-                readMethod = 'rb'
 
         logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
         requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
         if requestedStaticFilePath.exists():
             logger.log(logging.INFO, 'Found that static file')
-            if subfolder = "css":
+            if subfolder == "css":
                 start_fn('200 OK', [('Content-Type', mimeType)])
                 with requestedStaticFilePath.open('r') as f:
                     for line in f:
