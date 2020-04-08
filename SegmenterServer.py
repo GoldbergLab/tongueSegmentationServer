@@ -696,6 +696,9 @@ if __name__ == '__main__':
             logger.log(logging.INFO, 'Starting segmentation server...')
             serve(application, host='0.0.0.0', port=port)
             logger.log(logging.INFO, '...segmentation server started!')
+        except KeyboardInterrupt:
+            logger.exception('Keyboard interrupt')
+            break
         except:
             logger.exception('Server crashed!')
         time.sleep(5)
