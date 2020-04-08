@@ -341,8 +341,6 @@ class SegmentationServer:
                 linkURL='javascript:history.back()',
                 linkAction='return to job creation page'
                 ).encode('utf-8')]
-
-
         # Add job parameters to queue
         jobNum = SegmentationServer.newJobNum()
         self.jobQueue[jobNum] = dict(
