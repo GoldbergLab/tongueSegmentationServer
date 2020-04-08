@@ -247,12 +247,12 @@ class SegmentationServer:
         if requestedStaticFilePath.exists():
             logger.log(logging.INFO, 'Found that static file')
             if subfolder == "css":
-                start_fn('200 OK', [('Content-Type', mimeType)])
+                start_fn('200 OK', [('Content-Type', 'text/css')])
                 with requestedStaticFilePath.open('r') as f:
                     for line in f:
                         yield line.encode('utf-8')
             elif subfolder == "favicon":
-                start_fn('200 OK', [('Content-Type', mimeType)])
+                start_fn('200 OK', [('Content-Type', "image/x-icon")])
                 with requestedStaticFilePath.open('rb') as f:
                     yield f.read()
             else:
