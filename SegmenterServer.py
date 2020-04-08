@@ -555,8 +555,10 @@ videosAhead=videosAhead
                 estimatedTimeRemaining = "None"
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
         else:
-            meanTime = "Unknown"
-            timeConfInt = "Unknown"
+            meanTime = 0
+            meanTimeStr = "Unknown"
+            timeConfInt = 0
+            timeConfIntStr = "Unknown"
             estimatedTimeRemaining = "Unknown"
             numCompletedVideos = "0"
             percentComplete = "0"
