@@ -245,9 +245,31 @@ class SegmentationServer:
                 linkAction='return to job creation page'
                 ).encode('utf-8')]
 
-    def countVideosRemaining(self):
-        completedVideosAhead =  sum([len(self.jobQueue[jobNum]['completedVideoList']) for jobNum in self.jobQueue])
-        queuedVideosAhead =     sum([len(self.jobQueue[jobNum]['videoList'])          for jobNum in self.jobQueue])
+    def countJobsRemaining(self, beforeJobNum=None):
+        activeJobsAhead = 0
+        queuedJobsAhead = 0
+        for jobNum in self.jobQueue:
+            if beforeJobNum is not None and jobNum == beforeJobNum:
+                # This is the specified job num - stop, don't count any more
+                break
+            if self.jobQueue[jobNum]['completionTime'] is None:
+                if self.jobQueue[jobNum]['startTime'] is None:
+                    queuedJobsAhead += 1
+                else:
+                    activeJobsAhead += 1
+        jobsAhead = queuedJobsAhead + activeJobsAhead
+        return jobsAhead
+
+    def countVideosRemaining(self, beforeJobNum=None):
+        completedVideosAhead = 0
+        queuedVideosAhead = 0
+        for jobNum in self.jobQueue:
+            if beforeJobNum is not None and jobNum == beforeJobNum:
+                # This is the specified job num - stop, don't count any more
+                break
+            if self.jobQueue[jobNum]['completionTime'] is None:
+                completedVideosAhead += len(self.jobQueue[jobNum]['completedVideoList'])
+                queuedVideosAhead += len(self.jobQueue[jobNum]['videoList'])
         videosAhead = queuedVideosAhead - completedVideosAhead
         return videosAhead
 
@@ -517,8 +539,8 @@ videosAhead=videosAhead
         exitCode = self.jobQueue[jobNum]['exitCode']
         if exitCode == ServerJob.INCOMPLETE:
             if self.jobQueue[jobNum]['startTime'] is None:
-                jobsAhead = len(self.jobQueue)
-                videosAhead = self.countVideosRemaining()
+                jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
+                videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
                 exitCodePhrase = '''
 is enqueued, but not started. There are <strong>{jobsAhead} jobs</strong>
 ahead of you with <strong>{videosAhead} videos</strong> remaining.
