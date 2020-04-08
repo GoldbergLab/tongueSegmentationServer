@@ -240,7 +240,7 @@ class SegmentationServer:
                 linkAction='return to job creation page'
                 ).encode('utf-8')]
         else:
-            subfolder = int(environ['PATH_INFO'].split('/')[-2])
+            subfolder = environ['PATH_INFO'].split('/')[-2]
             if subfolder == "css":
                 mimeType = "text/css"
             elif subfolder == "favicon":
