@@ -535,18 +535,22 @@ videosAhead=videosAhead
             percentComplete = "0"
 
         completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']])
+        if len(completedVideoListHTML.strip()) == 0:
+            completedVieoListHTML = "None"
 
         exitCode = self.jobQueue[jobNum]['exitCode']
+        stateDescription = ''
         if exitCode == ServerJob.INCOMPLETE:
             if self.jobQueue[jobNum]['startTime'] is None:
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
-                exitCodePhrase = '''
-is enqueued, but not started. There are <strong>{jobsAhead} jobs</strong>
-ahead of you with <strong>{videosAhead} videos</strong> remaining.
-Your job will be enqueued to start as soon as any/all previous jobs are done.'''.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
+                exitCodePhrase = 'is enqueued, but not started.'
+                stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
+                                    ahead of you with <strong>{videosAhead} videos</strong> \
+                                    remaining. Your job will be enqueued to start as soon \
+                                    as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
             else:
-                exitCodePhrase = 'is in progress!'
+                exitCodePhrase = 'is <strong>in progress</strong>!'
         elif exitCode == ServerJob.SUCCESS:
             exitCodePhrase = 'is <strong>complete!</strong>'
         elif exitCode == ServerJob.FAILED:
@@ -573,7 +577,8 @@ Your job will be enqueued to start as soon as any/all previous jobs are done.'''
             logHTML=logHTML,
             percentComplete=percentComplete,
             numComplete=numCompletedVideos,
-            numTotal=numVideos
+            numTotal=numVideos,
+            stateDescription=stateDescription
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):

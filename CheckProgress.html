@@ -10,8 +10,8 @@
         <div class="container">
           <h1>Job Progress</h1>
           <h2>Job {jobID} {exitCodePhrase}</h2>
-          <h3>Job state is {jobStateName}.</h3>
-          <h3>Job info:</h3>
+          <h4>{stateDescription}</h4>
+          <h4>Job info:</h3>
           <div class="row">
             <div class="two columns">Description: </div><div class="three columns"><strong>{jobName}</strong></div>
           </div>
@@ -40,6 +40,9 @@
           </div>
           <div class="row">
             <div class="two columns">Job end time: </div><div class="three columns"><strong>{completionTime}</strong></div>
+          </div>
+          <div class="row">
+            <div class="two columns">Job state: </div><div class="three columns"><strong>{jobStateName}</strong></div>
           </div>
           <div class="row">
             <div>
