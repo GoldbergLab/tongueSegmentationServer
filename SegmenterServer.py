@@ -402,7 +402,7 @@ videosAhead=videosAhead
         return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is not None]
     def getAllJobNums(self, confirmedOnly=True):
         # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-        return [jobNum for jobNum in self.jobQueue and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed']))]
+        return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed']))]
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
