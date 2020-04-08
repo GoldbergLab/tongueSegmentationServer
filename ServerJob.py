@@ -265,10 +265,12 @@ class ServerJob(StateMachineProcess):
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
+                        self.exitCode = ServerJob.SUCCESS
                         nextState = ServerJob.STOPPING
                     elif msg in ['', ServerJob.START]:
                         nextState = ServerJob.WORKING
                     elif msg == ServerJob.EXIT:
+                        self.exitCode = ServerJob.SUCCESS
                         self.exitFlag = True
                         nextState = ServerJob.STOPPING
                     else:
@@ -295,6 +297,7 @@ class ServerJob(StateMachineProcess):
                         self.log("ERROR STATE. Error messages:\n\n")
                         self.log("\n\n".join(self.errorMessages))
                     self.errorMessages = []
+                    self.exitCode = ServerJob.FAILED
 
                     # CHECK FOR MESSAGES
                     try:
