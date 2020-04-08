@@ -571,7 +571,7 @@ Your job will be enqueued to start as soon as any/all previous jobs are done.'''
             completionTime=completionTime,
             exitCodePhrase=exitCodePhrase,
             logHTML=logHTML,
-            percentComplete=,
+            percentComplete=percentComplete,
             numComplete=numCompletedVideos,
             numTotal=numVideos
         ).encode('utf-8')]
