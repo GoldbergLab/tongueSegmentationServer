@@ -321,7 +321,7 @@ class SegmentationServer:
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
-        maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)[0]
+        maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)
         # Generate list of videos
         videoList = self.getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
