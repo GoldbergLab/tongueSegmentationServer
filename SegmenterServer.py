@@ -363,6 +363,7 @@ class SegmentationServer:
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('FinalizeJob.html', 'r') as f: htmlTemplate = f.read()
+        print('Serving up FinalizeJob.html')
         return [htmlTemplate.format(
 videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
 networkName=networkName,
@@ -403,6 +404,7 @@ videosAhead=videosAhead
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
+        print("confirming job")
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
         if jobNum not in self.getQueuedJobNums():
             # Invalid jobNum
@@ -629,7 +631,6 @@ videosAhead=videosAhead
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
         mountOptionsText = self.createOptionList(mountPaths, mountURIs)
-        logger.log(logging.INFO, 'rootHandler 1')
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
