@@ -72,12 +72,12 @@ finally:
     os.environ.clear()
     os.environ.update(envVars)
 
-def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
-    #   videoRootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
-    #   videoDirs - a list of strings representing video directory paths to look in
+def reRootDirectories(rootMountPoint, pathStyle, directory):
+    #   rootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
+    #   directories - a list of strings representing directory paths to re-root
     #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
 
-    reRootedDirectories = []
+    reRootedDirectory = []
     if pathStyle == 'windowsStylePaths':
         OSPurePath = PureWindowsPath
     elif pathStyle == 'posixStylePaths':
@@ -85,26 +85,21 @@ def reRootDirectories(videoRootMountPoint, pathStyle, *directories):
     else:
         raise ValueError('Invalid path style: {pathStyle}'.format(pathStyle=pathStyle))
 
-    for directory in directories:
-        directoryPath = OSPurePath(directory)
-        if directoryPath.parts[0] == directoryPath.anchor:
-            # This path includes the root - remove it.
-            rootlessDirectoryPathParts = directoryPath.parts[1:]
-        else:
-            rootlessDirectoryPathParts = directoryPath.parts
-        finalizedDirectoryPath = Path(videoRootMountPoint) / Path(*rootlessDirectoryPathParts)
-        reRootedDirectories.append(finalizedDirectoryPath)
-    return reRootedDirectories
+    directoryPath = OSPurePath(directory)
+    if directoryPath.parts[0] == directoryPath.anchor:
+        # This path includes the root - remove it.
+        rootlessDirectoryPathParts = directoryPath.parts[1:]
+    else:
+        rootlessDirectoryPathParts = directoryPath.parts
+    reRootedDirectory = Path(rootMountPoint) / Path(*rootlessDirectoryPathParts)
+    return reRootedDirectory
 
-def getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter='*'):
+def getVideoList(videoDirs, videoFilter='*'):
     # Generate a list of video Path objects from the given directories using the given path filters
-    #   videoRootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
     #   videoDirs - a list of strings representing video directory paths to look in
     #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
-    finalizedVideoDirs = reRootDirectories(videoRootMountPoint, pathStyle, *videoDirs)
-
     videoList = []
-    for p in finalizedVideoDirs:
+    for p in videoDirs:
         for videoPath in p.iterdir():
             if videoPath.match(videoFilter):
                 videoList.append(videoPath)
@@ -310,7 +305,7 @@ class SegmentationServer:
                 linkURL='/',
                 linkAction='retry job creation'
                 ).encode('utf-8')]
-        videoRootMountPoint = postData['videoRootMountPoint'][0]
+        rootMountPoint = postData['rootMountPoint'][0]
         videoDirs = postData['videoRoot'][0].strip().splitlines()
         videoFilter = postData['videoFilter'][0]
         maskSaveDirectory = postData['maskSaveDirectory'][0]
@@ -324,10 +319,29 @@ class SegmentationServer:
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'], widths=[None, None], heights=[int(botHeight), int(topHeight)], xOffsets=[0, 0], yOffsets=[0, 0]
         )
-        videoList = getVideoList(videoRootMountPoint, videoDirs, pathStyle, videoFilter=videoFilter)
+        # Re-root directories
+        reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
+        maskSaveDirectory = reRootDirectories(rootMountPoint, pathStyle, maskSaveDirectory)[0]
+        # Generate list of videos
+        videoList = self.getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
         jobsAhead = len(self.jobQueue)
         videosAhead = self.countVideosRemaining()
+
+        # Check if all parameters are valid. If not, display error and offer to go back
+        valid = True
+        errorMessages = []
+        if not valid:
+            errorMessage = "<br/>".join(errorMessages)
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            yield [htmlTemplate.format(
+                errorTitle='Invalid job parameter',
+                errorMsg=errorMessages,
+                linkURL='javascript:history.back()',
+                linkAction='return to job creation page'
+                ).encode('utf-8')]
+
 
         # Add job parameters to queue
         jobNum = SegmentationServer.newJobNum()
