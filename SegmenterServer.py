@@ -526,7 +526,7 @@ videosAhead=videosAhead
                 estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
             else:
                 estimatedTimeRemaining = "None"
-            percentComplete = "{percentComplete:.1}".format(percentComplete=percentComplete)
+            percentComplete = "{percentComplete:.1}".format(percentComplete=numCompletedVideos/numVideos)
         else:
             meanTime = "Unknown"
             timeConfInt = "Unknown"
