@@ -8,19 +8,12 @@
     <body>
       <div class="section">
         <div class="container">
+          <h1>Job Progress</h1>
+          <h2>Job {jobID} {exitCodePhrase}</h2>
+          <h3>Job state is {jobStateName}.</h3>
+          <h3>Job info:</h3>
           <div class="row">
-            <h1>Job {jobID} {exitCodePhrase}</h1>
-          </div>
-          <div class="row">
-            <h2>Job state is {jobStateName}.</h2>
-          </div>
-          <div class="row">
-            <h2>Job info:</h2>
-          </div>
-          <div class="row">
-          </div>
-          <div class="row">
-            <div class="two columns">Description: </div><div class="three columns">{jobName}</div>
+            <div class="two columns">Description: </div><div class="three columns"><strong>{jobName}</strong></div>
           </div>
           <div class="row">
             <div class="five columns">
@@ -28,25 +21,25 @@
             </div>
           </div>
           <div class="row">
-            <div class="two columns"></div>Percent complete:<div class="three columns">{percentComplete} %</div>
+            <div class="two columns">Percent complete:</div><div class="three columns"><strong>{percentComplete} %</strong></div>
           </div>
           <div class="row">
-            <div class="two columns"></div>Number complete:<div class="three columns">{numComplete}/{numTotal}</div>
+            <div class="two columns">Number complete:</div><div class="three columns"><strong>{numComplete}/{numTotal}</strong></div>
           </div>
           <div class="row">
-            <div class="two columns">Estimated time remaining:</div><div class="three columns">{estimatedTimeRemaining}</div>
+            <div class="two columns">Estimated time remaining:</div><div class="three columns"><strong>{estimatedTimeRemaining}</strong></div>
           </div>
           <div class="row">
-            <div class="two columns">Processing time per video: </div><div class="three columns">{meanTime} &plusmn; {confInt}</div>
+            <div class="two columns">Processing time per video: </div><div class="three columns"><strong>{meanTime} &plusmn; {confInt}</strong></div>
           </div>
           <div class="row">
-            <div class="two columns">Job creation time: </div><div class="three columns">{creationTime}</div>
+            <div class="two columns">Job creation time: </div><div class="three columns"><strong>{creationTime}</strong></div>
           </div>
           <div class="row">
-            <div class="two columns"></div><div class="three columns">Job start time: {startTime}</div>
+            <div class="two columns">Job start time:</div><div class="three columns"><strong>{startTime}</strong></div>
           </div>
           <div class="row">
-            <div class="two columns">Job end time: </div><div class="three columns">{completionTime}</div>
+            <div class="two columns">Job end time: </div><div class="three columns"><strong>{completionTime}</strong></div>
           </div>
           <div class="row">
             <div>
