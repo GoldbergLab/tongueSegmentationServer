@@ -225,7 +225,7 @@ class SegmentationServer:
         requestedStaticFileRelativePath = environ['PATH_INFO'].strip('/')
 
         if len(URLparts) < 2:
-            logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
+            logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
             yield [htmlTemplate.format(
@@ -240,7 +240,7 @@ class SegmentationServer:
         logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
         requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
         if requestedStaticFilePath.exists():
-            logger.log(logging.INFO, 'Found that static file')
+            logger.log(logging.DEBUG, 'Found that static file')
             if subfolder == "css":
                 start_fn('200 OK', [('Content-Type', 'text/css')])
                 with requestedStaticFilePath.open('r') as f:
@@ -251,7 +251,7 @@ class SegmentationServer:
                 with requestedStaticFilePath.open('rb') as f:
                     yield f.read()
         else:
-            logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
+            logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
             yield [htmlTemplate.format(
@@ -451,7 +451,7 @@ videosAhead=videosAhead
 
         if expired:
             # Delete expired job
-            print('Removing job {jobNum}'.format(jobNum=jobNum))
+            logger.log(logging.INTO, 'Removing job {jobNum}'.format(jobNum=jobNum))
             del self.jobQueue[jobNum]
 
     def updateJobQueueHandler(self, environ, start_fn):
@@ -536,7 +536,7 @@ videosAhead=videosAhead
     def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        allJobNums = self.getAllJobNums()
+        allJobNums = self.getAllJobNums(confirmedOnly=False)
         logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
         if jobNum not in allJobNums:
             # Invalid jobNum
