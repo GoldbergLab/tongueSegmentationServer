@@ -138,4 +138,4 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
         # Save mask to disk
-        savemat(savePath,{'maskPredictions':maskPredictions[partName]},do_compression=True)
+        savemat(savePath,{'mask_pred':maskPredictions[partName]},do_compression=True)
