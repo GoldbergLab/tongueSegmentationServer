@@ -541,7 +541,9 @@ videosAhead=videosAhead
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
+            meanTimeStr = "{meanTime:.1f}".format(meanTime=meanTime)
             timeConfInt = np.std(deltaT)*1.96
+            timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
             if self.jobQueue[jobNum]['completionTime'] is None:
                 estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
@@ -584,8 +586,8 @@ videosAhead=videosAhead
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
         return [htmlTemplate.format(
-            meanTime=meanTime,
-            confInt=timeConfInt,
+            meanTime=meanTimeStr,
+            confInt=timeConfIntStr,
             videoList=completedVideoListHTML,
             jobStateName=jobStateName,
             jobID=jobNum,
