@@ -226,12 +226,41 @@ class SegmentationServer:
         return optionText
 
     def staticHandler(self, environ, start_fn):
+        URLparts = environ['PATH_INFO'].split('/')
         requestedStaticFileRelativePath = environ['PATH_INFO'].strip('/')
+
+        if len(URLparts) < 2:
+            logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            yield [htmlTemplate.format(
+                errorTitle='Static file not found',
+                errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
+                linkURL='/',
+                linkAction='return to job creation page'
+                ).encode('utf-8')]
+        else:
+            subfolder = int(environ['PATH_INFO'].split('/')[-2])
+            if subfolder == "css":
+                mimeType = "text/css"
+            elif subfolder == "favicon":
+                mimeType = "image/x-icon"
+            else:
+                logger.log(logging.INFO, 'Invalid static file location: {s}'.format(s=subfolder))
+                start_fn('404 Not Found', [('Content-Type', 'text/html')])
+                with open('Error.html', 'r') as f: htmlTemplate = f.read()
+                yield [htmlTemplate.format(
+                    errorTitle='Static file not found',
+                    errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
+                    linkURL='/',
+                    linkAction='return to job creation page'
+                    ).encode('utf-8')]
+
         logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
         requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
         if requestedStaticFilePath.exists():
             logger.log(logging.INFO, 'Found that static file')
-            start_fn('200 OK', [('Content-Type', 'text/html')])
+            start_fn('200 OK', [('Content-Type', mimeType)])
             for line in requestedStaticFilePath.open('r'):
                 yield line.encode('utf-8')
         else:
