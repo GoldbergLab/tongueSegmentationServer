@@ -451,6 +451,7 @@ videosAhead=videosAhead
 
         if expired:
             # Delete expired job
+            print('Removing job {jobNum}'.format(jobNum=jobNum))
             del self.jobQueue[jobNum]
 
     def updateJobQueueHandler(self, environ, start_fn):
