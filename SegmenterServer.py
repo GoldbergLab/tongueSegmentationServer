@@ -531,11 +531,11 @@ videosAhead=videosAhead
         startTime = "Not started yet"
         completionTime = "Not complete yet"
         if self.jobQueue[jobNum]['creationTime'] is not None:
-            creationTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['creationTime']/1000000000).isoformat()
+            creationTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['creationTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
         if self.jobQueue[jobNum]['startTime'] is not None:
-            startTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['startTime']/1000000000).isoformat()
+            startTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['startTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
         if self.jobQueue[jobNum]['completionTime'] is not None:
-            completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).isoformat()
+            completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
 
         numVideos = len(self.jobQueue[jobNum]['videoList'])
         if len(self.jobQueue[jobNum]['times']) > 1:
@@ -546,7 +546,11 @@ videosAhead=videosAhead
             timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
             if self.jobQueue[jobNum]['completionTime'] is None:
-                estimatedTimeRemaining = str(dt.timedelta(seconds=(numVideos - numCompletedVideos) * meanTime))
+                estimatedSecondsRemaining = (numVideos - numCompletedVideos) * meanTime)
+                days, remainder = divmod(estimatedSecondsRemaining, 86400)
+                hours, remainder = divmod(remainder, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                estimatedTimeRemaining = '{days} d, {hours} h, {minutes} m, {seconds} s'.format(days=days, hours=int(hours), minutes=int(minutes), seconds=int(seconds))
             else:
                 estimatedTimeRemaining = "None"
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
