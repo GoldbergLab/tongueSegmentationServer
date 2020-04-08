@@ -621,7 +621,7 @@ videosAhead=videosAhead
                 else:
                     exitCodePhrase = 'has not been confirmed yet. <form action="/confirmJob/{jobID}"><input class="button button-primary" type="submit" value="Confirm and enqueue job" /></form>'.format(jobID=jobNum)
                 stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
-                                    ahead of you with <strong>{videosAhead} videos</strong> \
+                                    ahead of you with <strong>{videosAhead} total videos</strong> \
                                     remaining. Your job will be enqueued to start as soon \
                                     as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
             else:
