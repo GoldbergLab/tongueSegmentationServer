@@ -247,6 +247,20 @@ class SegmentationServer:
             elif subfolder == "favicon":
                 mimeType = "image/x-icon"
                 readMethod = 'rb'
+
+        logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
+        requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
+        if requestedStaticFilePath.exists():
+            logger.log(logging.INFO, 'Found that static file')
+            if subfolder = "css":
+                start_fn('200 OK', [('Content-Type', mimeType)])
+                with requestedStaticFilePath.open('r') as f:
+                    for line in f:
+                        yield line.encode('utf-8')
+            elif subfolder == "favicon":
+                start_fn('200 OK', [('Content-Type', mimeType)])
+                with requestedStaticFilePath.open('rb') as f:
+                    yield f.read()
             else:
                 logger.log(logging.INFO, 'Invalid static file location: {s}'.format(s=subfolder))
                 start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -258,13 +272,6 @@ class SegmentationServer:
                     linkAction='return to job creation page'
                     ).encode('utf-8')]
 
-        logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
-        requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
-        if requestedStaticFilePath.exists():
-            logger.log(logging.INFO, 'Found that static file')
-            start_fn('200 OK', [('Content-Type', mimeType)])
-            for line in requestedStaticFilePath.open(readMethod):
-                yield line.encode('utf-8')
         else:
             logger.log(logging.INFO, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
