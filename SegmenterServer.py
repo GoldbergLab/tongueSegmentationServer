@@ -580,7 +580,20 @@ videosAhead=videosAhead
                 days, remainder = divmod(estimatedSecondsRemaining, 86400)
                 hours, remainder = divmod(remainder, 3600)
                 minutes, seconds = divmod(remainder, 60)
-                estimatedTimeRemaining = '{days} d, {hours} h, {minutes} m, {seconds} s'.format(days=days, hours=int(hours), minutes=int(minutes), seconds=int(seconds))
+                if days > 0:
+                    estimatedDaysRemaining = '{days} d, '.format(days=int(days))
+                else:
+                    estimatedDaysRemaining = ''
+                if hours > 0 or days > 0:
+                    estimatedHoursRemaining = '{hours} h, '.format(hours=int(hours))
+                else:
+                    estimatedHoursRemaining = ''
+                if minutes > 0 or hours > 0 or days > 0:
+                    estimatedMinutesRemaining = '{minutes} m, '.format(minutes=int(minutes))
+                else:
+                    estimatedMinutesRemaining = ''
+                estimatedSecondsRemaining = '{seconds} s'.format(seconds=int(seconds))
+                estimatedTimeRemaining = estimatedDaysRemaining + estimatedHoursRemaining + estimatedMinutesRemaining + estimatedSecondsRemaining
             else:
                 estimatedTimeRemaining = "None"
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
