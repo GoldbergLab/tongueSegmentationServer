@@ -294,7 +294,7 @@ class SegmentationServer:
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
 
-        keys = ['videoRootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'neuralNetwork', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
+        keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'neuralNetwork', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
         if not all([key in postData for key in keys]):
             # Not all form parameters got POSTed
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
