@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # create logger with 'spam_application'
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 # create file handler which logs even debug messages
 datetimeString = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S.%f')
 fh = logging.FileHandler('./{logs}/{n}_{d}.log'.format(d=datetimeString, n=__name__, logs=LOGS_SUBFOLDER))
@@ -407,7 +407,7 @@ videosAhead=videosAhead
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.getQueuedJobNums():
+        if jobNum not in self.getQueuedJobNums(confirmedOnly=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
