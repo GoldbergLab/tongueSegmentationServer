@@ -388,18 +388,21 @@ videosAhead=videosAhead
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
-    def getQueuedJobNums(self):
+    def getUnconfirmedJobNums(self):
+        # Get a list of job nums of unconfirmed jobs
+        return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed']]
+    def getQueuedJobNums(self, confirmedOnly=True):
         # Get a list of job nums for queued jobs, in the queue order
-        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is None]
+        return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed']))]
     def getActiveJobNums(self):
         # Get a list of active job nums
         return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is None]
     def getCompletedJobNums(self):
         # Get a list of completed job nums
         return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is not None]
-    def getAllJobNums(self):
+    def getAllJobNums(self, confirmedOnly=True):
         # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-        return [jobNum for jobNum in self.jobQueue]
+        return [jobNum for jobNum in self.jobQueue and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed']))]
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
@@ -430,7 +433,7 @@ videosAhead=videosAhead
         start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
         return []
 
-    def removeFinishedJob(self, jobNum, waitingPeriod=0):
+    def removeJob(self, jobNum, waitingPeriod=0):
         # waitingPeriod = amount of time in seconds to wait after job completionTime before removing from queue
         completionTime = self.jobQueue[jobNum]['completionTime']
         if completionTime is None or (time.time_ns() - completionTime) / 1000000 > waitingPeriod:
@@ -448,6 +451,9 @@ videosAhead=videosAhead
         return []
 
     def updateJobQueue(self):
+        # Remove stale unconfirmed jobs:
+        for jobNum in self.getUnconfirmedJobNums():
+            self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
         # Check if the current job is done. If it is, remove it and start the next job
         for jobNum in self.getActiveJobNums():
             # Loop over active jobs, see if they're done, and pop them off if so
@@ -469,13 +475,13 @@ videosAhead=videosAhead
             elif jobState == ServerJob.ERROR:
                 pass
                 # job.terminate()
-                # self.removeFinishedJob(jobNum)
+                # self.removeJob(jobNum)
                 # logger.log(logging.INFO, "Removing job {jobNum} in error state".format(jobNum=jobNum))
             elif jobState == ServerJob.EXITING:
                 pass
             elif jobState == ServerJob.DEAD:
                 self.jobQueue[jobNum]['completionTime'] = time.time_ns()
-                self.removeFinishedJob(jobNum, waitingPeriod=self.cleanupTime)
+                self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
                 logger.log(logging.INFO, "Removing job {jobNum} in dead state".format(jobNum=jobNum))
             elif jobState == -1:
                 pass
