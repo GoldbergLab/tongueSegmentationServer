@@ -21,7 +21,9 @@
     {state}
   </td>
   <td>
-    <a href="/checkProgress/{jobNum}">Check progress</a>
+    <form action="/checkProgress/{jobNum}">
+        <input class="button primary-button" type="submit" value="Check progress" />
+    </form>
   </td>
   <td>
     <form action="/cancelJob/{jobNum}" onsubmit="return confirmTerminate({jobNum})">
