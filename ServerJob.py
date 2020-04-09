@@ -191,9 +191,10 @@ class ServerJob(StateMachineProcess):
                     finishedVideoList = []
                     videoIndex = 0
                     processingStartTime = None
+                    currentVideo = None
                     if self.verbose >= 3: self.log('Server job initialized!')
 #                    self.sendProgress(finishedVideoList, self.videoList, None, processingStartTime)
-                    self.sendProgress(None, processingStartTime)
+                    self.sendProgress(currentVideo, processingStartTime)
 
                     # CHECK FOR MESSAGES
                     try:
