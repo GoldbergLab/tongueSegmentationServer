@@ -32,6 +32,8 @@ LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
 
+HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
+
 logger = logging.getLogger(__name__)
 
 # create logger with 'spam_application'
@@ -154,6 +156,8 @@ class SegmentationServer:
         self.webRootPath = Path(webRoot).resolve()
         self.maxActiveJobs = 1          # Maximum # of jobs allowed to be running at once
         self.jobQueue = odict()         # List of job parameters for waiting jobs
+
+        self.startTime = dt.datetime.now()
 
         self.cleanupTime = 86400        # Number of seconds to wait before deleting finished/dead jobs
 
@@ -564,11 +568,11 @@ videosAhead=videosAhead
         startTime = "Not started yet"
         completionTime = "Not complete yet"
         if self.jobQueue[jobNum]['creationTime'] is not None:
-            creationTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['creationTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
+            creationTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['creationTime']/1000000000).strftime(HTML_DATE_FORMAT)
         if self.jobQueue[jobNum]['startTime'] is not None:
-            startTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['startTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
+            startTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['startTime']/1000000000).strftime(HTML_DATE_FORMAT)
         if self.jobQueue[jobNum]['completionTime'] is not None:
-            completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
+            completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).strftime(HTML_DATE_FORMAT)
 
         numVideos = len(self.jobQueue[jobNum]['videoList'])
         numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
@@ -749,6 +753,8 @@ videosAhead=videosAhead
         with open('ServerManagementTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
 
+        serverStartTime = self.startTime.strftime(HTML_DATE_FORMAT)
+
         jobEntries = []
         for jobNum in allJobNums:
             state = 'Unknown'
@@ -778,11 +784,14 @@ videosAhead=videosAhead
                 jobDescription = self.jobQueue[jobNum]['jobName'],
                 confirmed=self.jobQueue[jobNum]['confirmed'],
                 cancelled=self.jobQueue[jobNum]['cancelled'],
-                state=state
+                state=state,
             ))
         jobEntryTableBody = '\n'.join(jobEntries)
         with open('ServerManagement.html', 'r') as f: htmlTemplate = f.read()
-        html = htmlTemplate.format(tbody=jobEntryTableBody)
+        html = htmlTemplate.format(
+            tbody=jobEntryTableBody,
+            startTime=startTime
+            )
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return [html.encode('utf-8')]
 
