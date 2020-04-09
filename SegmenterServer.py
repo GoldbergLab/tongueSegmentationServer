@@ -561,7 +561,7 @@ videosAhead=videosAhead
 
         binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
         maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
-        networkName = self.jobQueue[jobNum]['neuralNetworkPath']
+        networkName = self.jobQueue[jobNum]['neuralNetworkPath'].name
         segSpec = self.jobQueue[jobNum]['segmentationSpecification']
         topOffset = segSpec.getYLim('Top')[0]
         topHeight = segSpec.getHeight('Top')
