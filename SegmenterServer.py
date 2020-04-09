@@ -659,7 +659,7 @@ videosAhead=videosAhead
             numComplete=numCompletedVideos,
             numTotal=numVideos,
             stateDescription=stateDescription,
-            processDead=
+            processDead=processDead
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
