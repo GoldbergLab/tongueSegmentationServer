@@ -334,6 +334,32 @@ class SegmentationServer:
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
         maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)
+        # Check that specified directories exist:
+        for videoDir in reRootedVideoDirs:
+            if not videoDir.exists():
+                # Invalid jobNum
+                start_fn('404 Not Found', [('Content-Type', 'text/html')])
+                with open('Error.html', 'r') as f: htmlTemplate = f.read()
+                errorMsg = 'Video directory not found: {videoDir}'.format(videoDir=videoDir)
+                return [htmlTemplate.format(
+                    errorTitle='Invalid video directory',
+                    errorMsg=errorMsg,
+                    linkURL='/',
+                    linkAction='recreate job'
+                    ).encode('utf-8')]
+        # Check that specified maskSaveDirectory exists:
+        if not maskSaveDirectory.exists():
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            errorMsg = 'Mask save directory not found: {maskSaveDirectory}'.format(maskSaveDirectory=maskSaveDirectory)
+            return [htmlTemplate.format(
+                errorTitle='Invalid mask save directory',
+                errorMsg=errorMsg,
+                linkURL='/',
+                linkAction='recreate job'
+                ).encode('utf-8')]
+
         # Generate list of videos
         videoList = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
