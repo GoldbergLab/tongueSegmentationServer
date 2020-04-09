@@ -714,7 +714,7 @@ videosAhead=videosAhead
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.getQueuedJobNums(confirmedOnly=False):
+        if jobNum not in self.getAllJobNums(confirmedOnly=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
