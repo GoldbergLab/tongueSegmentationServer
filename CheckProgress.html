@@ -9,11 +9,13 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
     <link rel="manifest" href="/static/favicon/site.webmanifest">  </head>
     <script>
-      var reloadInterval = 5000;
-      var reloaderID = window.setInterval(reloader, reloadInterval);
-      function reloader() {{
-        if (document.getElementById("reloadCheckbox").checked) {{
-          location.reload();
+      if (!{processDead}) {{
+        var reloadInterval = 5000;
+        var reloaderID = window.setInterval(reloader, reloadInterval);
+        function reloader() {{
+          if (document.getElementById("reloadCheckbox").checked) {{
+            location.reload();
+          }}
         }}
       }}
     </script>

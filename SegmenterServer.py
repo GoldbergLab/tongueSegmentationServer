@@ -612,7 +612,9 @@ videosAhead=videosAhead
 
         exitCode = self.jobQueue[jobNum]['exitCode']
         stateDescription = ''
+        processDead = "true"
         if exitCode == ServerJob.INCOMPLETE:
+            processDead = "false"
             if self.jobQueue[jobNum]['startTime'] is None:
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
@@ -656,7 +658,8 @@ videosAhead=videosAhead
             percentComplete=percentComplete,
             numComplete=numCompletedVideos,
             numTotal=numVideos,
-            stateDescription=stateDescription
+            stateDescription=stateDescription,
+            processDead=
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
