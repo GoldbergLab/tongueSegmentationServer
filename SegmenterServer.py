@@ -766,9 +766,9 @@ videosAhead=videosAhead
             elif self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED:
                 state = 'Failed'
 
-            numVideos = len(self.jobQueue[jobNum]['videoList']),
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList']),
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos),
+            numVideos = len(self.jobQueue[jobNum]['videoList'])
+            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
 
             jobEntries.append(jobEntryTemplate.format(
                 numVideos = numVideos,
