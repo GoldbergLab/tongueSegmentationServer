@@ -744,7 +744,37 @@ videosAhead=videosAhead
         return []
 
     def serverManagementHandler(self, environ, start_fn):
-        pass
+        allJobNums = self.getAllJobNums(confirmedOnly=False)
+
+        with open('ServerManagementTableRowTemplate.html', 'r') as f:
+            jobEntryTemplate = f.read()
+
+        for jobNum in allJobNums:
+            state = 'Unknown'
+            if self.jobQueue[jobNum]['cancelled']:
+                state = 'Cancelled'
+            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
+                if not self.jobQueue[jobNum]['confirmed']:
+                    state = 'Unconfirmed'
+                elif self.jobQueue[jobNum]['startTime'] is None:
+                    state = 'Enqueued'
+                else:
+                    state = 'Working'
+            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCESS:
+                state = 'Succeeded'
+            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED:
+                state = 'Failed'
+
+            jobEntry = jobEntryTemplate.format(
+                numVideos = len(self.jobQueue[jobNum]['videoList']),
+                numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList']),
+                percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos),
+                jobNum=jobNum,
+                jobDescription = self.jobQueue[jobNum]['jobName'],
+                confirmed=self.jobQueue[jobNum]['confirmed'],
+                cancelled=self.jobQueue[jobNum]['cancelled'],
+                state=state
+            )
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
