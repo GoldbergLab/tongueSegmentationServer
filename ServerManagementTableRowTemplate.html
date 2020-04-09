@@ -24,6 +24,8 @@
     <a href="/checkProgress/{jobNum}">Check progress</a>
   </td>
   <td>
-    <a href="/cancelJob/{jobNum}">Cancel job</a>
+    <form action="/cancelJob/{jobNum}" onsubmit="return confirmTerminate({jobNum})">
+        <input class="button" type="submit" value="Terminate Job" />
+    </form>
   </td>
 </tr>
