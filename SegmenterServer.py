@@ -559,12 +559,13 @@ videosAhead=videosAhead
         else:
             jobStateName = "ENQUEUED"
 
-        maskSaveDirectory = postData['maskSaveDirectory'][0]
-        networkName = networksFolder / postData['neuralNetwork'][0]
-        binaryThreshold = postData['binaryThreshold'][0]
-        topOffset = postData['topOffset'][0]
-        topHeight = postData['topHeight'][0]
-        botHeight = postData['botHeight'][0]
+        binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
+        maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
+        networkName = self.jobQueue[jobNum]['neuralNetworkPath']
+        segSpec = self.jobQueue[jobNum]['segmentationSpecification']
+        topOffset = segSpec.getYLim('Top')[0]
+        topHeight = segSpec.getHeight('Top')
+        botHeight = segSpec.getHeight('Bot')
 
         creationTime = ""
         startTime = "Not started yet"
@@ -668,7 +669,13 @@ videosAhead=videosAhead
             numComplete=numCompletedVideos,
             numTotal=numVideos,
             stateDescription=stateDescription,
-            processDead=processDead
+            processDead=processDead,
+            binaryThreshold=binaryThreshold,
+            maskSaveDirectory=maskSaveDirectory,
+            networkName=networkName,
+            topOffset=topOffset,
+            topHeight=topHeight,
+            botHeight=botHeight
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
