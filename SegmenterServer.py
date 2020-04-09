@@ -312,7 +312,7 @@ class SegmentationServer:
         maskSaveDirectory = postData['maskSaveDirectory'][0]
         pathStyle = postData['pathStyle'][0]
         networkName = networksFolder / postData['neuralNetwork'][0]
-        binaryThreshold = int(postData['binaryThreshold'][0])
+        binaryThreshold = float(postData['binaryThreshold'][0])
         topOffset = int(postData['topOffset'][0])
         topHeight = int(postData['topHeight'][0])
         botHeight = int(postData['botHeight'][0])
