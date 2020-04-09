@@ -580,7 +580,20 @@ videosAhead=videosAhead
                 days, remainder = divmod(estimatedSecondsRemaining, 86400)
                 hours, remainder = divmod(remainder, 3600)
                 minutes, seconds = divmod(remainder, 60)
-                estimatedTimeRemaining = '{days} d, {hours} h, {minutes} m, {seconds} s'.format(days=days, hours=int(hours), minutes=int(minutes), seconds=int(seconds))
+                if days > 0:
+                    estimatedDaysRemaining = '{days} d, '.format(days=int(days))
+                else:
+                    estimatedDaysRemaining = ''
+                if hours > 0 or days > 0:
+                    estimatedHoursRemaining = '{hours} h, '.format(hours=int(hours))
+                else:
+                    estimatedHoursRemaining = ''
+                if minutes > 0 or hours > 0 or days > 0:
+                    estimatedMinutesRemaining = '{minutes} m, '.format(minutes=int(minutes))
+                else:
+                    estimatedMinutesRemaining = ''
+                estimatedSecondsRemaining = '{seconds} s'.format(seconds=int(seconds))
+                estimatedTimeRemaining = estimatedDaysRemaining + estimatedHoursRemaining + estimatedMinutesRemaining + estimatedSecondsRemaining
             else:
                 estimatedTimeRemaining = "None"
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
@@ -599,18 +612,23 @@ videosAhead=videosAhead
 
         exitCode = self.jobQueue[jobNum]['exitCode']
         stateDescription = ''
+        processDead = "true"
         if exitCode == ServerJob.INCOMPLETE:
+            processDead = "false"
             if self.jobQueue[jobNum]['startTime'] is None:
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
                 if self.jobQueue[jobNum]['confirmed']:
                     exitCodePhrase = 'is enqueued, but not started.'
+                    stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
+                                        ahead of you with <strong>{videosAhead} total videos</strong> \
+                                        remaining. Your job will be enqueued to start as soon \
+                                        as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
                 else:
                     exitCodePhrase = 'has not been confirmed yet. <form action="/confirmJob/{jobID}"><input class="button button-primary" type="submit" value="Confirm and enqueue job" /></form>'.format(jobID=jobNum)
-                stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
-                                    ahead of you with <strong>{videosAhead} videos</strong> \
-                                    remaining. Your job will be enqueued to start as soon \
-                                    as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
+                    stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
+                                        ahead of you with <strong>{videosAhead} total videos</strong> \
+                                        remaining. Your job will be enqueued after you confirm it.'
             else:
                 exitCodePhrase = 'is <strong>in progress</strong>!'
         elif exitCode == ServerJob.SUCCESS:
@@ -640,7 +658,8 @@ videosAhead=videosAhead
             percentComplete=percentComplete,
             numComplete=numCompletedVideos,
             numTotal=numVideos,
-            stateDescription=stateDescription
+            stateDescription=stateDescription,
+            processDead=
         ).encode('utf-8')]
 
     def rootHandler(self, environ, start_fn):
