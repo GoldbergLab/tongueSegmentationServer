@@ -300,7 +300,7 @@ class SegmentationServer:
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
 
-        keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'neuralNetwork', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
+        keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
         if not all([key in postData for key in keys]):
             # Not all form parameters got POSTed
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -316,14 +316,20 @@ class SegmentationServer:
         videoFilter = postData['videoFilter'][0]
         maskSaveDirectory = postData['maskSaveDirectory'][0]
         pathStyle = postData['pathStyle'][0]
-        networkName = networksFolder / postData['neuralNetwork'][0]
+        topNetworkPath = networksFolder / postData['topNetworkName'][0]
+        botNetworkPath = networksFolder / postData['botNetworkName'][0]
         binaryThreshold = float(postData['binaryThreshold'][0])
         topOffset = int(postData['topOffset'][0])
         topHeight = int(postData['topHeight'][0])
         botHeight = int(postData['botHeight'][0])
         jobName = postData['jobName'][0]
         segSpec = SegmentationSpecification(
-            partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[0, topOffset]
+            partNames=['Bot', 'Top'],
+            widths=[None, None],
+            heights=[botHeight, topHeight],
+            xOffsets=[0, 0],
+            yOffsets=[0, topOffset],
+            neuralNetworkPaths=[topNetworkPath, botNetworkPath]
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
@@ -358,7 +364,6 @@ class SegmentationServer:
             videoList=videoList,                    # List of video paths to process
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
             segmentationSpecification=segSpec,      # SegSpec
-            neuralNetworkPath=networkName,          # Path to chosen neural network
             binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
             times=[],                               # List of video processing start times
@@ -373,7 +378,8 @@ class SegmentationServer:
         with open('FinalizeJob.html', 'r') as f: htmlTemplate = f.read()
         return [htmlTemplate.format(
 videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
-networkName=networkName,
+topNetworkName=topNetworkPath.name,
+botNetworkName=botNetworkPath.name,
 binaryThreshold=binaryThreshold,
 topOffset=topOffset,
 topHeight=topHeight,
@@ -558,8 +564,9 @@ videosAhead=videosAhead
 
         binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
         maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
-        networkName = self.jobQueue[jobNum]['neuralNetworkPath'].name
         segSpec = self.jobQueue[jobNum]['segmentationSpecification']
+        topNetworkName = segSpec.getNetworkPath('Top').name
+        botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYLim('Top')[0]
         topHeight = segSpec.getHeight('Top')
         botHeight = segSpec.getHeight('Bot')
@@ -677,7 +684,8 @@ videosAhead=videosAhead
             processDead=processDead,
             binaryThreshold=binaryThreshold,
             maskSaveDirectory=maskSaveDirectory,
-            networkName=networkName,
+            topNetworkName=topNetworkName,
+            botNetworkName=botNetworkName,
             topOffset=topOffset,
             topHeight=topHeight,
             botHeight=botHeight

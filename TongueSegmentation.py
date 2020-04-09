@@ -12,36 +12,45 @@ from pathlib import Path
 #import matplotlib.pyplot as plt
 
 class SegmentationSpecification:
-    # A class to hold the info about the parts of the image that should be separately segmented.
+    # A class to hold all info about how to segment the parts of the image.
     # Provide a list of part names, and correspondingly indexed lists of part widths, heights, xOffsets, and yOffsets
     # Width or height entries may be None, which means the part extends the maximum distance to the edge of the frame
-    def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[]):
+    # neuralNetworkPaths are a list of file paths leading to .h5 or .hd5 tensorflow trained neural network files
+    def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[], neuralNetworkPaths=[]):
         N = len(partNames)
         # Fill xOffets with zeros
         xOffsets = xOffsets + [0 for k in range(N - len(xOffsets))]
         yOffsets = yOffsets + [0 for k in range(N - len(yOffsets))]
 
         self.partNames = partNames
-        self._specs = dict(zip(partNames, zip(widths, heights, xOffsets, yOffsets)))
+        self._maskDims = dict(zip(partNames, zip(widths, heights, xOffsets, yOffsets)))
+        self._networkPaths = dict(zip(partNames, neuralNetworkPaths))
+        self._networks = dict(zip(partNames, [None for k in partNames]))
 
     def getPartNames(self):
         return self.partNames
 
+    def getNetworkPath(self, partName):
+        return self._networkPaths[partName]
+
+    def getNetwork(self, partName):
+        return self._networks[partName]
+
     def getSize(self, partName):
-        return self._specs[partName][0:2]
+        return self._maskDims[partName][0:2]
 
     def getWidth(self, partName):
-        return self._specs[partName][0]
+        return self._maskDims[partName][0]
 
     def getXLim(self, partName):
-        w, h, x, y = self._specs[partName]
+        w, h, x, y = self._maskDims[partName]
         if w is None:
             return (x, None)
         else:
             return (x, x+w)
 
     def getYLim(self, partName):
-        w, h, x, y = self._specs[partName]
+        w, h, x, y = self._maskDims[partName]
         if h is None:
             return (y, None)
         else:
@@ -54,39 +63,44 @@ class SegmentationSpecification:
         return slice(*self.getYLim(partName))
 
     def getHeight(self, partName):
-        return self._specs[partName][1]
+        return self._maskDims[partName][1]
 
     def getXOffset(self, partName):
-        return self._specs[partName][2]
+        return self._maskDims[partName][2]
 
     def getYOffset(self, partName):
-        return self._specs[partName][3]
+        return self._maskDims[partName][3]
 
     def initialize(self, vcap):
         # Initialize segspec with video information, so we can give more informed output
         wFrame = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
         hFrame = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        for partName in self._specs:
-            [w, h, x, y] = self._specs[partName]
+        for partName in self._maskDims:
+            [w, h, x, y] = self._maskDims[partName]
             if w is None:
                 w = wFrame - x
             if h is None:
                 h = hFrame - y
-            self._specs[partName] = [w, h, x, y]
+            self._maskDims[partName] = [w, h, x, y]
 
+    def initializeNetworks(self, partNames=None):
+        clear_session()
+        if partNames is None:
+            partNames = self._networkPaths.keys()
+        for partName in partNames:
+            self._networks[partName] = load_model(self._networkPaths[partName])
 
-def initializeNeuralNetwork(neuralNetworkPath):
-    clear_session()
-    return load_model(neuralNetworkPath)
+# def initializeNeuralNetwork(neuralNetworkPath):
+#     clear_session()
+#     return load_model(neuralNetworkPath)
 
-def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3):
+def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3):
     # Save one or more predicted mask files for a given video and segmenting neural network
-    #   neuralNetwork: A loaded neural network object
     #   videoPath: The path to the video file in question
     #   segSpec: a SegmentationSpecification object, which defines how to split the image up into parts to do separate segmentations
     #   maskSaveDirectory: The directory in which to save the completed binary mask predictions
     #   videoIndex: An integer indicating which video this is in the series of videos. This will be used to number the output masks
-    if None in [neuralNetwork, videoPath, segSpec, maskSaveDirectory, videoIndex]:
+    if None in [videoPath, segSpec, maskSaveDirectory, videoIndex]:
         raise ValueError('Missing argument')
 
     if type(videoPath) != type(str()):
@@ -133,7 +147,7 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
         # Convert image to uint8
         imageBuffers[partName] = imageBuffers[partName].astype(np.uint8)
         # Create predicted mask and threshold to make it binary
-        maskPredictions[partName] = neuralNetwork.predict(imageBuffers[partName]) > binaryThreshold
+        maskPredictions[partName] = segSpec.getNetwork(partName).predict(imageBuffers[partName]) > binaryThreshold
         # Generate save name for mask
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName

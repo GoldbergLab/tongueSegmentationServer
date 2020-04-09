@@ -1,6 +1,6 @@
 import multiprocessing as mp
 import logging
-from TongueSegmentation import initializeNeuralNetwork, segmentVideo
+from TongueSegmentation import segmentVideo
 import copy
 import itertools
 import os
@@ -104,7 +104,6 @@ class ServerJob(StateMachineProcess):
                 maskSaveDirectory = None,
                 segmentationSpecification = None,
                 waitingTimeout = 600,
-                neuralNetworkPath = None,
                 binaryThreshold = 0.3,
                 jobNum = None,
                 **kwargs):
@@ -118,7 +117,6 @@ class ServerJob(StateMachineProcess):
         self.segSpec = segmentationSpecification
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
-        self.neuralNetworkPath = neuralNetworkPath
         self.binaryThreshold = binaryThreshold
         self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
@@ -186,8 +184,8 @@ class ServerJob(StateMachineProcess):
 # ********************************* INITIALIZING *********************************
                 elif state == ServerJob.INITIALIZING:
                     # DO STUFF
-                    if self.verbose >= 1: self.log('Initializing neural network...')
-                    neuralNetwork = initializeNeuralNetwork(self.neuralNetworkPath)
+                    if self.verbose >= 1: self.log('Initializing neural networks...')
+                    self.segSpec.initializeNetworks()
                     if self.verbose >= 1: self.log('...neural network initialized.')
                     unfinishedVideoList = copy.deepcopy(self.videoList)
                     finishedVideoList = []
@@ -249,7 +247,7 @@ class ServerJob(StateMachineProcess):
                     processingStartTime = time.time_ns()
                     # Segment video
                     currentVideo = self.videoList.pop(0)
-                    segmentVideo(neuralNetwork=neuralNetwork, videoPath=currentVideo, segSpec=self.segSpec, maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex, binaryThreshold=self.binaryThreshold)
+                    segmentVideo(videoPath=currentVideo, segSpec=self.segSpec, maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex, binaryThreshold=self.binaryThreshold)
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
 #                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
