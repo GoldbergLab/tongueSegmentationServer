@@ -619,7 +619,10 @@ videosAhead=videosAhead
             if self.jobQueue[jobNum]['startTime'] is None:
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
-                if self.jobQueue[jobNum]['confirmed']:
+                if self.jobQueue[jobNum]['cancelled']:
+                    exitCodePhrase = 'has been cancelled.'
+                    stateDescription = 'This job has been cancelled, and will stop after the current video is complete. All existing masks will remain in place. Stand by...'
+                elif self.jobQueue[jobNum]['confirmed']:
                     exitCodePhrase = 'is enqueued, but not started.'
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
