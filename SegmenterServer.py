@@ -784,7 +784,7 @@ videosAhead=videosAhead
         with open('ServerManagement.html', 'r') as f: htmlTemplate = f.read()
         html = htmlTemplate.format(tbody=jobEntryTableBody)
         start_fn('200 OK', [('Content-Type', 'text/html')])
-        return [jobEntry.encode('utf-8')]
+        return [html.encode('utf-8')]
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
