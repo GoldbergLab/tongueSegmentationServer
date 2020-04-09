@@ -147,6 +147,7 @@ class SegmentationServer:
             ('/confirmJob/*',       self.confirmJobHandler),
             ('/checkProgress/*',    self.checkProgressHandler),
             ('/updateQueue',        self.updateJobQueueHandler),
+            ('/cancelJob/*',        self.cancelJobHandler),
             ('/serverManagement',   self.serverManagementHandler),
             ('/',                   self.rootHandler)
         ]
@@ -349,6 +350,7 @@ class SegmentationServer:
             jobName=jobName,                        # Name/description of job
             jobNum=jobNum,                          # Job ID
             confirmed=False,                        # Has user confirmed params yet
+            cancelled=False,                        # Has the user cancelled this job?
             videoList=videoList,                    # List of video paths to process
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
             segmentationSpecification=segSpec,      # SegSpec
@@ -420,15 +422,6 @@ videosAhead=videosAhead
                 linkURL='/',
                 linkAction='recreate job'
                 ).encode('utf-8')]
-        # elif self.jobQueue[jobNum].exitcode is not None:
-        #     # Error, process has terminated
-        #     start_fn('404 Not Found', [('Content-Type', 'text/html')])
-        #     return ['<html><body><h1>Error: Requested job has already terminated. </h1><h2><a href="/">Please click here to re-create job.</a></h2></body></html>'.encode('utf-8')]
-        # elif self.pendingJobs[jobNum].publishedStateVar.value != ServerJob.WAITING:
-        #     # Error, job is not in the waiting state
-        #     jobState = ServerJob.stateList[self.pendingJobs[jobNum].publishedStateVar.value]
-        #     start_fn('404 Not Found', [('Content-Type', 'text/html')])
-        #     return ['<html><body><h1>Error: Job is not waiting to begin, but instead is in state {state}. </h1><h2><a href="/">Please click here to re-enter.</a></h2></body></html>'.format(state=jobState).encode('utf-8')]
         else:
             # Valid enqueued job - set confirmed flag to True, so it can be started when at the front
             self.jobQueue[jobNum]['confirmed'] = True
@@ -640,7 +633,10 @@ videosAhead=videosAhead
             else:
                 exitCodePhrase = 'is <strong>in progress</strong>!'
         elif exitCode == ServerJob.SUCCESS:
-            exitCodePhrase = 'is <strong>complete!</strong>'
+            if self.jobQueue[jobNum]['cancelled']:
+                exitCodePhrase = 'has been <strong>cancelled</strong>.'
+            else:
+                exitCodePhrase = 'is <strong>complete!</strong>'
         elif exitCode == ServerJob.FAILED:
             exitCodePhrase = 'has exited with errors :(  Please see debug output below.'
         else:
@@ -714,6 +710,34 @@ videosAhead=videosAhead
                 linkURL='/',
                 linkAction='retry job creation once a neural network has been uploaded'
                 ).encode('utf-8')]
+
+    def cancelJobHandler(self, environ, start_fn):
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-1])
+        if jobNum not in self.getQueuedJobNums(confirmedOnly=False):
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            errorMsg = 'Invalid job ID {jobID}'.format(jobID=jobNum)
+            return [htmlTemplate.format(
+                errorTitle='Invalid job ID',
+                errorMsg=errorMsg,
+                linkURL='/',
+                linkAction='recreate job'
+                ).encode('utf-8')]
+        else:
+            # Valid enqueued job - set cancelled flag to True, and
+            self.jobQueue[jobNum]['cancelled'] = True
+            now = time.time_ns()
+            if self.jobQueue[jobNum]['creationTime'] is None:
+                self.jobQueue[jobNum]['creationTime'] = now
+            if self.jobQueue[jobNum]['startTime'] is None:
+                self.jobQueue[jobNum]['startTime'] = now
+            self.jobQueue[jobNum]['completionTime'] = now
+            if self.jobQueue[jobNum]['job'] is not None:
+                self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.EXIT, None))
+        start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
+        return []
 
     def serverManagementHandler(self, environ, start_fn):
         pass
