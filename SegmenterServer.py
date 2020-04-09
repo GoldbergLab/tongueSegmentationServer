@@ -765,16 +765,22 @@ videosAhead=videosAhead
             elif self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED:
                 state = 'Failed'
 
+            numVideos = len(self.jobQueue[jobNum]['videoList']),
+            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList']),
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos),
+
             jobEntry = jobEntryTemplate.format(
-                numVideos = len(self.jobQueue[jobNum]['videoList']),
-                numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList']),
-                percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos),
+                numVideos = numVideos,
+                numCompletedVideos = numCompletedVideos,
+                percentComplete = percentComplete,
                 jobNum=jobNum,
                 jobDescription = self.jobQueue[jobNum]['jobName'],
                 confirmed=self.jobQueue[jobNum]['confirmed'],
                 cancelled=self.jobQueue[jobNum]['cancelled'],
                 state=state
             )
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            return jobEntry.encode('utf-8')
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
