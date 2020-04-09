@@ -105,6 +105,7 @@ class ServerJob(StateMachineProcess):
                 segmentationSpecification = None,
                 waitingTimeout = 600,
                 neuralNetworkPath = None,
+                binaryThreshold = 0.3,
                 jobNum = None,
                 **kwargs):
         StateMachineProcess.__init__(self, logger=kwargs['logger']) #, **kwargs)
@@ -118,6 +119,7 @@ class ServerJob(StateMachineProcess):
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
         self.neuralNetworkPath = neuralNetworkPath
+        self.binaryThreshold = binaryThreshold
         self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
 
@@ -247,7 +249,7 @@ class ServerJob(StateMachineProcess):
                     processingStartTime = time.time_ns()
                     # Segment video
                     currentVideo = self.videoList.pop(0)
-                    segmentVideo(neuralNetwork=neuralNetwork, videoPath=currentVideo, segSpec=self.segSpec, maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex)
+                    segmentVideo(neuralNetwork=neuralNetwork, videoPath=currentVideo, segSpec=self.segSpec, maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex, binaryThreshold=self.binaryThreshold)
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
 #                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)

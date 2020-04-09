@@ -147,6 +147,7 @@ class SegmentationServer:
             ('/confirmJob/*',       self.confirmJobHandler),
             ('/checkProgress/*',    self.checkProgressHandler),
             ('/updateQueue',        self.updateJobQueueHandler),
+            ('/serverManagement',   self.serverManagementHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -311,13 +312,13 @@ class SegmentationServer:
         maskSaveDirectory = postData['maskSaveDirectory'][0]
         pathStyle = postData['pathStyle'][0]
         networkName = networksFolder / postData['neuralNetwork'][0]
-        binaryThreshold = postData['binaryThreshold'][0]
-        topOffset = postData['topOffset'][0]
-        topHeight = postData['topHeight'][0]
-        botHeight = postData['botHeight'][0]
+        binaryThreshold = int(postData['binaryThreshold'][0])
+        topOffset = int(postData['topOffset'][0])
+        topHeight = int(postData['topHeight'][0])
+        botHeight = int(postData['botHeight'][0])
         jobName = postData['jobName'][0]
         segSpec = SegmentationSpecification(
-            partNames=['Bot', 'Top'], widths=[None, None], heights=[int(botHeight), int(topHeight)], xOffsets=[0, 0], yOffsets=[0, 0]
+            partNames=['Bot', 'Top'], widths=[None, None], heights=[botHeight, topHeight], xOffsets=[0, 0], yOffsets=[0, topOffset]
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
@@ -352,6 +353,7 @@ class SegmentationServer:
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
             segmentationSpecification=segSpec,      # SegSpec
             neuralNetworkPath=networkName,          # Path to chosen neural network
+            binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
             times=[],                               # List of video processing start times
             creationTime=time.time_ns(),            # Time job was created
@@ -557,6 +559,13 @@ videosAhead=videosAhead
         else:
             jobStateName = "ENQUEUED"
 
+        maskSaveDirectory = postData['maskSaveDirectory'][0]
+        networkName = networksFolder / postData['neuralNetwork'][0]
+        binaryThreshold = postData['binaryThreshold'][0]
+        topOffset = postData['topOffset'][0]
+        topHeight = postData['topHeight'][0]
+        botHeight = postData['botHeight'][0]
+
         creationTime = ""
         startTime = "Not started yet"
         completionTime = "Not complete yet"
@@ -700,6 +709,9 @@ videosAhead=videosAhead
                 linkURL='/',
                 linkAction='retry job creation once a neural network has been uploaded'
                 ).encode('utf-8')]
+
+    def serverManagementHandler(self, environ, start_fn):
+        pass
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')

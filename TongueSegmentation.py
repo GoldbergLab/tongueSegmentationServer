@@ -79,7 +79,7 @@ def initializeNeuralNetwork(neuralNetworkPath):
     clear_session()
     return load_model(neuralNetworkPath)
 
-def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None):
+def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3):
     # Save one or more predicted mask files for a given video and segmenting neural network
     #   neuralNetwork: A loaded neural network object
     #   videoPath: The path to the video file in question
@@ -133,7 +133,7 @@ def segmentVideo(neuralNetwork=None, videoPath=None, segSpec=None, maskSaveDirec
         # Convert image to uint8
         imageBuffers[partName] = imageBuffers[partName].astype(np.uint8)
         # Create predicted mask and threshold to make it binary
-        maskPredictions[partName] = neuralNetwork.predict(imageBuffers[partName]) > 0.3
+        maskPredictions[partName] = neuralNetwork.predict(imageBuffers[partName]) > binaryThreshold
         # Generate save name for mask
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
