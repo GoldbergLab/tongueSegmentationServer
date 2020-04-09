@@ -532,7 +532,7 @@ videosAhead=videosAhead
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
         allJobNums = self.getAllJobNums(confirmedOnly=False)
-        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
+#        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
         if jobNum not in allJobNums:
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
