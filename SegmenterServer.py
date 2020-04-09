@@ -727,6 +727,7 @@ videosAhead=videosAhead
                 ).encode('utf-8')]
         else:
             # Valid enqueued job - set cancelled flag to True, and
+            logger.log(logging.INFO, 'Cancelling job {jobNum}'.format(jobNum=jobNum))
             self.jobQueue[jobNum]['cancelled'] = True
             now = time.time_ns()
             if self.jobQueue[jobNum]['creationTime'] is None:
