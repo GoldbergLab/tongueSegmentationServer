@@ -749,6 +749,7 @@ videosAhead=videosAhead
         with open('ServerManagementTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
 
+        jobEntries = []
         for jobNum in allJobNums:
             state = 'Unknown'
             if self.jobQueue[jobNum]['cancelled']:
@@ -769,7 +770,7 @@ videosAhead=videosAhead
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList']),
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos),
 
-            jobEntry = jobEntryTemplate.format(
+            jobEntries.append(jobEntryTemplate.format(
                 numVideos = numVideos,
                 numCompletedVideos = numCompletedVideos,
                 percentComplete = percentComplete,
@@ -778,9 +779,12 @@ videosAhead=videosAhead
                 confirmed=self.jobQueue[jobNum]['confirmed'],
                 cancelled=self.jobQueue[jobNum]['cancelled'],
                 state=state
-            )
-            start_fn('200 OK', [('Content-Type', 'text/html')])
-            return jobEntry.encode('utf-8')
+            ))
+        jobEntryTableBody = '\n'.join(jobEntries)
+        with open('ServerManagement.html', 'r') as f: htmlTemplate = f.read()
+        html = htmlTemplate.format(tbody=jobEntryTableBody)
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return [jobEntry.encode('utf-8')]
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
