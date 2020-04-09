@@ -1,3 +1,25 @@
 .section-heading {
   text-align: center;
 }
+
+.button.button-warning,
+button.button-warning,
+input[type="submit"].button-warning,
+input[type="reset"].button-warning,
+input[type="button"].button-warning {
+  color: #FFF;
+  background-color: #F05233;
+  border-color: #F05233; }
+.button.button-warning:hover,
+button.button-warning:hover,
+input[type="submit"].button-warning:hover,
+input[type="reset"].button-warning:hover,
+input[type="button"].button-warning:hover,
+.button.button-warning:focus,
+button.button-warning:focus,
+input[type="submit"].button-warning:focus,
+input[type="reset"].button-warning:focus,
+input[type="button"].button-warning:focus {
+  color: #FFF;
+  background-color: #DB3E1E;
+  border-color: #DB3E1E; }
