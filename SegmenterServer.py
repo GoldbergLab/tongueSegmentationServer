@@ -168,7 +168,7 @@ class SegmentationServer:
     def __call__(self, environ, start_fn):
         for path, handler in self.routes:
             if fnmatch.fnmatch(environ['PATH_INFO'], path):
-                logger.log(logging.INFO, 'Matched url {path} to route {route} with handler {handler}'.format(path=environ['PATH_INFO'], route=path, handler=handler))
+                logger.log(logging.DEBUG, 'Matched url {path} to route {route} with handler {handler}'.format(path=environ['PATH_INFO'], route=path, handler=handler))
                 return handler(environ, start_fn)
         return self.invalidHandler(environ, start_fn)
 
@@ -243,7 +243,7 @@ class SegmentationServer:
         else:
             subfolder = environ['PATH_INFO'].split('/')[-2]
 
-        logger.log(logging.INFO, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
+        logger.log(logging.DEBUG, 'Serving static file: {path}'.format(path=requestedStaticFileRelativePath))
         requestedStaticFilePath = self.webRootPath / requestedStaticFileRelativePath
         if requestedStaticFilePath.exists():
             logger.log(logging.DEBUG, 'Found that static file')
