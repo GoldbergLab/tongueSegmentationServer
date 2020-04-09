@@ -790,7 +790,7 @@ videosAhead=videosAhead
         with open('ServerManagement.html', 'r') as f: htmlTemplate = f.read()
         html = htmlTemplate.format(
             tbody=jobEntryTableBody,
-            startTime=startTime
+            startTime=serverStartTime
             )
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return [html.encode('utf-8')]
