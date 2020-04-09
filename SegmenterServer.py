@@ -578,13 +578,14 @@ videosAhead=videosAhead
             completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).strftime('%Y-%m-%d %H:%M:%S')
 
         numVideos = len(self.jobQueue[jobNum]['videoList'])
+        numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
+        percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
             meanTimeStr = "{meanTime:.1f}".format(meanTime=meanTime)
             timeConfInt = np.std(deltaT)*1.96
             timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
             if self.jobQueue[jobNum]['completionTime'] is None:
                 estimatedSecondsRemaining = (numVideos - numCompletedVideos) * meanTime
                 days, remainder = divmod(estimatedSecondsRemaining, 86400)
@@ -606,15 +607,12 @@ videosAhead=videosAhead
                 estimatedTimeRemaining = estimatedDaysRemaining + estimatedHoursRemaining + estimatedMinutesRemaining + estimatedSecondsRemaining
             else:
                 estimatedTimeRemaining = "None"
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
         else:
             meanTime = 0
             meanTimeStr = "Unknown"
             timeConfInt = 0
             timeConfIntStr = "Unknown"
             estimatedTimeRemaining = "Unknown"
-            numCompletedVideos = "0"
-            percentComplete = "0"
 
         completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']])
         if len(completedVideoListHTML.strip()) == 0:
