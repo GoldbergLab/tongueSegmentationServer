@@ -29,25 +29,27 @@ from webob import Request
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-logger = logging.getLogger(__name__)
+def initializeLogger():
+    logger = logging.getLogger(__name__)
 
-# create logger with 'spam_application'
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# create file handler which logs even debug messages
-datetimeString = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S.%f')
-fh = logging.FileHandler('./{logs}/{n}_{d}.log'.format(d=datetimeString, n=__name__, logs=LOGS_SUBFOLDER))
-fh.setLevel(logging.INFO)
-# create console handler with a higher log level
-# ch = logging.StreamHandler(stream=sys.stdout)
-# ch.setLevel(logging.DEBUG)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
-# ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(fh)
-# logger.addHandler(ch)
+    # create logger with 'spam_application'
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    # create file handler which logs even debug messages
+    datetimeString = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S.%f')
+    fh = logging.FileHandler('./{logs}/{n}_{d}.log'.format(d=datetimeString, n=__name__, logs=LOGS_SUBFOLDER))
+    fh.setLevel(logging.INFO)
+    # create console handler with a higher log level
+    # ch = logging.StreamHandler(stream=sys.stdout)
+    # ch.setLevel(logging.DEBUG)
+    # create formatter and add it to the handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    # ch.setFormatter(formatter)
+    # add the handlers to the logger
+    logger.addHandler(fh)
+    # logger.addHandler(ch)
+    return logger
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
 NETWORKS_SUBFOLDER = 'networks'
@@ -68,6 +70,8 @@ for reqFolder in REQUIRED_SUBFOLDERS:
         reqFolder.mkdir()
 
 AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
+
+logger = initializeLogger()
 
 def loadAuth():
     try:
