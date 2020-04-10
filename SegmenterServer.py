@@ -76,8 +76,8 @@ def loadAuth():
     except:
         logger.log(logging.ERROR, "Error loading authentication file")
         userData = {'glab':['password', 0]}
-    users = {(user, userData[user][0]) for user in userData}
-    user_lvls = {(user, userData[user][1]) for user in userData}
+    users = dict((user, userData[user][0]) for user in userData)
+    user_lvls = dict((user, userData[user][1]) for user in userData)
     return users, user_lvls
 
 USERS, USER_LVLS = loadAuth()
