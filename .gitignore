@@ -4,6 +4,8 @@
 /logs/
 # Ignore neural networks
 /networks/
+# Ignore private files
+/private/
 # Ignore specific files:
 /TODO.txt
 Auth.json
