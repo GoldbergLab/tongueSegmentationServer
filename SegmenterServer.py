@@ -151,6 +151,7 @@ class SegmentationServer:
             ('/updateQueue',        self.updateJobQueueHandler),
             ('/cancelJob/*',        self.cancelJobHandler),
             ('/serverManagement',   self.serverManagementHandler),
+            ('/restartServer',      self.restartServerHandler)
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -833,6 +834,9 @@ videosAhead=videosAhead
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return [html.encode('utf-8')]
 
+    def restartServerHandler(self, environ, start_fn):
+        raise SystemExit("Server restart requested")
+
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
         requestedPath = environ['PATH_INFO']
@@ -863,6 +867,8 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             logger.exception('Keyboard interrupt')
             break
+        except SystemExit:
+            logger.exception('Server restart requested by user')
         except:
             logger.exception('Server crashed!')
-        time.sleep(5)
+        time.sleep(1)
