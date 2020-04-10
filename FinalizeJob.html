@@ -19,20 +19,20 @@
     <div class="section">
       <div class="container">
         <div class="row">
-          <div class='seven columns'>
+          <div class='twelve columns'>
             There are <strong>{jobsAhead} jobs</strong> ahead of you with <strong>{videosAhead} videos</strong> remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
           </div>
         </div>
         <div class="row">
-          <div class='seven columns'>
+          <div class='twelve columns'>
             Please review the following job specifications and confirm if correct:
           </div>
         </div>
         <div class="row">
-          <div class="three columns">Job description:</div><div class="four columns">{jobName} </div>
+          <div class="three columns">Job description:</div><div class="nine columns">{jobName} </div>
         </div>
         <div class="row">
-          <details class="seven columns">
+          <details class="twelve columns">
               <summary>List of video files:</summary>
               <ul>
                   {videoList}
@@ -40,25 +40,25 @@
           </details>
         </div>
         <div class="row">
-          <div class="three columns">Chosen top neural network:</div><div class="four columns">{topNetworkName} </div>
+          <div class="three columns">Chosen top neural network:</div><div class="nine columns">{topNetworkName} </div>
         </div>
         <div class="row">
-          <div class="three columns">Chosen bottom neural network:</div><div class="four columns">{botNetworkName} </div>
+          <div class="three columns">Chosen bottom neural network:</div><div class="nine columns">{botNetworkName} </div>
         </div>
         <div class="row">
-          <div class="three columns">Top mask vertical offset:</div><div class="four columns">{topOffset} </div>
+          <div class="three columns">Top mask vertical offset:</div><div class="nine columns">{topOffset} </div>
         </div>
         <div class="row">
-          <div class="three columns">Top mask height:</div><div class="four columns">{topHeight} </div>
+          <div class="three columns">Top mask height:</div><div class="nine columns">{topHeight} </div>
         </div>
         <div class="row">
-          <div class="three columns">Bottom mask height:</div><div class="four columns">{botHeight} </div>
+          <div class="three columns">Bottom mask height:</div><div class="nine columns">{botHeight} </div>
         </div>
         <div class="row">
-          <div class="three columns">Binary mask threshold:</div><div class="four columns">{binaryThreshold} </div>
+          <div class="three columns">Binary mask threshold:</div><div class="nine columns">{binaryThreshold} </div>
         </div>
         <form action="/confirmJob/{jobID}">
-            <input class="seven columns button button-primary" type="submit" value="Confirm and enqueue job" />
+            <input class="twelve columns button button-primary" type="submit" value="Confirm and enqueue job" />
         </form>
       </div>
     </div>
