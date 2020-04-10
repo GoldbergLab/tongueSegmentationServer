@@ -918,7 +918,7 @@ class SegmentationServer:
         return self.formatError(
             environ,
             errorTitle='Not authorized',
-            errorMsg='User {user} is not authorized!'.format(user=getUsername(environ)),
+            errorMsg='User {user} is not authorized to perform that action!'.format(user=getUsername(environ)),
             linkURL='/',
             linkAction='return to job creation page'
         )
