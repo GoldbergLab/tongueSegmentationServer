@@ -6,3 +6,4 @@
 /networks/
 # Ignore specific files:
 /TODO.txt
+/Auth.json
