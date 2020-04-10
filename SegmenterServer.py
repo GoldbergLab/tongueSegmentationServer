@@ -54,6 +54,7 @@ NETWORKS_SUBFOLDER = 'networks'
 LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
+PRIVATE_FOLDER = 'private'
 
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
 ROOT_PATH = Path(ROOT)
@@ -66,7 +67,7 @@ for reqFolder in REQUIRED_SUBFOLDERS:
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
 
-AUTH_FILE = Path('Auth.json')
+AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
 
 def loadAuth():
     try:
