@@ -488,13 +488,13 @@ class SegmentationServer:
                 continue
             elif (confirmed is not None) and (confirmed != job['confirmed']):
                 continue
-            elif (active is not None) and (active != (job['job'] is not None) and (active != (job['completionTime'] is None)):
+            elif (active is not None) and (active != (job['job'] is not None)) and (active != (job['completionTime'] is None)):
                 continue
             elif (completed is not None) and (completed != (job['completionTime'] is not None)):
                 continue
             elif (succeeded is not None) and (succeeded != (job['exitCode'] == ServerJob.SUCCEEDED)):
                 continue
-            elif (failed is not None) and (failed != (job['exitCode'] == ServerJob.FAILED))
+            elif (failed is not None) and (failed != (job['exitCode'] == ServerJob.FAILED)):
                 continue
             jobNums.append(jobNum)
         return jobNums
