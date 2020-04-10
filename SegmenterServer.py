@@ -479,7 +479,7 @@ class SegmentationServer:
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
-    def getJobNums(self, confirmed=None, active=None, completed=None, owner=None, succeeded=None, failed=None):
+    def getJobNums(self, confirmed=None, active=None, completed=None, owner=None, succeeded=None, failed=None, cancelled=None):
         # For each filter argument, "None" means do not filter
         jobNums = []
         for jobNum in self.jobQueue:
@@ -488,7 +488,7 @@ class SegmentationServer:
                 continue
             elif (confirmed is not None) and (confirmed != job['confirmed']):
                 continue
-            elif (active is not None) and (active != (job['job'] is not None)) and (active != (job['completionTime'] is None)):
+            elif (active is not None) and ((active != (job['job'] is not None)) or (active != (job['completionTime'] is None))):
                 continue
             elif (completed is not None) and (completed != (job['completionTime'] is not None)):
                 continue
@@ -569,9 +569,11 @@ class SegmentationServer:
 
     def updateJobQueue(self):
         # Remove stale unconfirmed jobs:
+        print("removing unconfirmed jobs")
         for jobNum in self.getJobNums(confirmed=False):
             self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
         # Check if the current job is done. If it is, remove it and start the next job
+        print("checking if active job is done")
         for jobNum in self.getJobNums(active=True):
             # Loop over active jobs, see if they're done, and pop them off if so
             job = self.jobQueue[jobNum]['job']
