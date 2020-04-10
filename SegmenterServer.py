@@ -151,7 +151,7 @@ class SegmentationServer:
             ('/updateQueue',        self.updateJobQueueHandler),
             ('/cancelJob/*',        self.cancelJobHandler),
             ('/serverManagement',   self.serverManagementHandler),
-            ('/restartServer',      self.restartServerHandler)
+            ('/restartServer',      self.restartServerHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
