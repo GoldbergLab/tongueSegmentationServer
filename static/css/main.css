@@ -85,7 +85,7 @@ input[type="button"].button-deadly:focus {
 .navBar{
   background-color: #009cde;
   overflow: hidden;
-  margin: 0 0 20px 0px;
+  margin: 0px 0px 20px 0px;
 }
 
 /*Floats each item to the left with padding of 14 & 16 px.
