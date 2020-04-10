@@ -29,14 +29,6 @@ from webob import Request
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
-NETWORKS_SUBFOLDER = 'networks'
-LOGS_SUBFOLDER = 'logs'
-STATIC_SUBFOLDER = 'static'
-ROOT = '.'
-
-HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
-
 logger = logging.getLogger(__name__)
 
 # create logger with 'spam_application'
@@ -57,12 +49,19 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 # logger.addHandler(ch)
 
-rootPath = Path(ROOT)
-networksFolder = rootPath / NETWORKS_SUBFOLDER
-logsFolder = rootPath / LOGS_SUBFOLDER
-staticFolder = rootPath / STATIC_SUBFOLDER
-requiredSubfolders = [networksFolder, logsFolder, staticFolder]
-for reqFolder in requiredSubfolders:
+NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
+NETWORKS_SUBFOLDER = 'networks'
+LOGS_SUBFOLDER = 'logs'
+STATIC_SUBFOLDER = 'static'
+ROOT = '.'
+
+HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
+ROOT_PATH = Path(ROOT)
+NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
+LOGS_FOLDER = ROOT_PATH / LOGS_SUBFOLDER
+STATIC_FOLDER = ROOT_PATH / STATIC_SUBFOLDER
+REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER]
+for reqFolder in REQUIRED_SUBFOLDERS:
     if not reqFolder.exists():
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
@@ -360,8 +359,8 @@ class SegmentationServer:
             videoFilter = postData['videoFilter'][0]
             maskSaveDirectory = postData['maskSaveDirectory'][0]
             pathStyle = postData['pathStyle'][0]
-            topNetworkPath = networksFolder / postData['topNetworkName'][0]
-            botNetworkPath = networksFolder / postData['botNetworkName'][0]
+            topNetworkPath = NETWORKS_FOLDER / postData['topNetworkName'][0]
+            botNetworkPath = NETWORKS_FOLDER / postData['botNetworkName'][0]
             binaryThreshold = float(postData['binaryThreshold'][0])
             topOffset = int(postData['topOffset'][0])
             topHeight = int(postData['topHeight'][0])
