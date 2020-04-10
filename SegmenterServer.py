@@ -479,26 +479,46 @@ class SegmentationServer:
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
-    def getUnconfirmedJobNums(self, owner=None):
-        # Get a list of job nums of unconfirmed jobs
-        return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed'] and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    def getQueuedJobNums(self, confirmedOnly=True, owner=None):
-        # Get a list of job nums for queued jobs, in the queue order
-        return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    def getActiveJobNums(self, owner=None):
-        # Get a list of active job nums
-        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    def getCompletedJobNums(self, owner=None):
-        # Get a list of completed job nums
-        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is not None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    def getAllJobNums(self, confirmedOnly=True, owner=None):
-        # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-        return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    def getJobNums(self, confirmed=None, active=None, completed=None, owner=None, succeeded=None, failed=None):
+        # For each filter argument, "None" means do not filter
+        jobNums = []
+        for jobNum in self.jobQueue:
+            job = self.jobQueue[jobNum]
+            if   (owner is not None) and (owner != job['owner']):
+                continue
+            elif (confirmed is not None) and (confirmed != job['confirmed']):
+                continue
+            elif (active is not None) and (active != (job['job'] is not None) and (active != (job['completionTime'] is None)):
+                continue
+            elif (completed is not None) and (completed != (job['completionTime'] is not None)):
+                continue
+            elif (succeeded is not None) and (succeeded != (job['exitCode'] == ServerJob.SUCCEEDED)):
+                continue
+            elif (failed is not None) and (failed != (job['exitCode'] == ServerJob.FAILED))
+                continue
+            jobNums.append(jobNum)
+        return jobNums
+
+    # def getUnconfirmedJobNums(self, owner=None):
+    #     # Get a list of job nums of unconfirmed jobs
+    #     return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed'] and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    # def getQueuedJobNums(self, confirmedOnly=True, owner=None):
+    #     # Get a list of job nums for queued jobs, in the queue order
+    #     return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    # def getActiveJobNums(self, owner=None):
+    #     # Get a list of active job nums
+    #     return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    # def getCompletedJobNums(self, owner=None):
+    #     # Get a list of completed job nums
+    #     return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is not None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    # def getAllJobNums(self, confirmedOnly=True, owner=None):
+    #     # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
+    #     return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.getQueuedJobNums(confirmedOnly=False):
+        if jobNum not in self.getJobNums(active=False, completed=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return self.formatError(
@@ -549,10 +569,10 @@ class SegmentationServer:
 
     def updateJobQueue(self):
         # Remove stale unconfirmed jobs:
-        for jobNum in self.getUnconfirmedJobNums():
+        for jobNum in self.getJobNums(confirmed=False):
             self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
         # Check if the current job is done. If it is, remove it and start the next job
-        for jobNum in self.getActiveJobNums():
+        for jobNum in self.getJobNums(active=True):
             # Loop over active jobs, see if they're done, and pop them off if so
             job = self.jobQueue[jobNum]['job']
             jobState = job.publishedStateVar.value
@@ -583,13 +603,13 @@ class SegmentationServer:
             elif jobState == -1:
                 pass
 
-        if len(self.getActiveJobNums()) < self.maxActiveJobs:
+        if len(self.getJobNums(active=True)) < self.maxActiveJobs:
             # Start the next job, if any
-            for jobNum in self.getQueuedJobNums():
-                if self.jobQueue[jobNum]['confirmed']:
-                    # This is the next confirmed job - start it
-                    self.startJob(jobNum)
-                    break;
+            # Loop over confirmed, inactive (queued) job nums
+            for jobNum in self.getJobNums(active=False, confirmed=True):
+                # This is the next queued confirmed job - start it
+                self.startJob(jobNum)
+                break;
 
     def updateJobProgress(self, jobNum):
         if jobNum in self.jobQueue and self.jobQueue[jobNum]['job'] is not None:
@@ -620,7 +640,7 @@ class SegmentationServer:
     def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        allJobNums = self.getAllJobNums(confirmedOnly=False)
+        allJobNums = self.getJobNums()
 #        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
         if jobNum not in allJobNums:
             # Invalid jobNum
@@ -727,7 +747,7 @@ class SegmentationServer:
                     stateDescription = 'This job has been cancelled, and will stop after the current video is complete. All existing masks will remain in place. Stand by...'
                 else:
                     exitCodePhrase = 'is <strong>in progress</strong>!'
-        elif exitCode == ServerJob.SUCCESS:
+        elif exitCode == ServerJob.SUCCEEDED:
             if self.jobQueue[jobNum]['cancelled']:
                 exitCodePhrase = 'has been <strong>cancelled</strong>.'
             else:
@@ -821,7 +841,7 @@ class SegmentationServer:
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.getAllJobNums(confirmedOnly=False):
+        if jobNum not in self.getJobNums():
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return self.formatError(
@@ -854,7 +874,7 @@ class SegmentationServer:
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
 
-        allJobNums = self.getAllJobNums(confirmedOnly=False)
+        allJobNums = self.getJobNums()
 
         with open('ServerManagementTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
@@ -873,7 +893,7 @@ class SegmentationServer:
                     state = 'Enqueued'
                 else:
                     state = 'Working'
-            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCESS:
+            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCEEDED:
                 state = 'Succeeded'
             elif self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED:
                 state = 'Failed'

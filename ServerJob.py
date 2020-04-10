@@ -80,11 +80,11 @@ class ServerJob(StateMachineProcess):
 
     # Exit codes:
     INCOMPLETE = -1
-    SUCCESS = 0
+    SUCCEEDED = 0
     FAILED = 1
     exitCodeList = {
         INCOMPLETE: 'Incomplete',
-        SUCCESS: 'Success',
+        SUCCEEDED: 'Success',
         FAILED: 'Failed'
     }
 
@@ -266,12 +266,12 @@ class ServerJob(StateMachineProcess):
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        self.exitCode = ServerJob.SUCCESS
+                        self.exitCode = ServerJob.SUCCEEDED
                         nextState = ServerJob.STOPPING
                     elif msg in ['', ServerJob.START]:
                         nextState = ServerJob.WORKING
                     elif msg == ServerJob.EXIT:
-                        self.exitCode = ServerJob.SUCCESS
+                        self.exitCode = ServerJob.SUCCEEDED
                         self.exitFlag = True
                         nextState = ServerJob.STOPPING
                     else:
