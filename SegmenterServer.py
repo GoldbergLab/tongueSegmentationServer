@@ -68,15 +68,31 @@ for reqFolder in requiredSubfolders:
         reqFolder.mkdir()
 
 AUTH_FILE = Path('Auth.json')
-try:
-    with open(AUTH_FILE, 'r') as f:
-        USERS = json.loads(f.read())
-except:
-    logger.log(logging.ERROR, "Error loading authentication file")
-    USERS = {'glab':'password'}
+
+def loadAuth():
+    try:
+        with open(AUTH_FILE, 'r') as f:
+            userData = json.loads(f.read())
+    except:
+        logger.log(logging.ERROR, "Error loading authentication file")
+        userData = {'glab':['password', 0]}
+    users = {(user, userData[user][0]) for user in userData}
+    user_lvls = {(user, userData[user][1]) for user in userData}
+    return users, user_lvls
+
+USERS, USER_LVLS = loadAuth()
 
 BASE_USER='glab'
 ADMIN_USER='admin'
+
+def isWriteAuthorized(user, owner):
+    # Check if user is authorized to modify/terminate owner's job
+    userLvl = USER_LVLS[user]
+    ownerLvl = USER_LVLS[owner]
+    return (user == owner) or (userLvl > ownerLvl)
+def isAdmin(user):
+    # Check if user has at least lvl 2 privileges
+    return USER_LVLS[user] >= 2
 
 # Set environment variables for authentication
 # envVars = dict(os.environ)  # or os.environ.copy()
@@ -487,6 +503,9 @@ class SegmentationServer:
                 linkURL='/',
                 linkAction='recreate job'
                 )
+        elif not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
         else:
             # Valid enqueued job - set confirmed flag to True, so it can be started when at the front
             self.jobQueue[jobNum]['confirmed'] = True
@@ -807,6 +826,9 @@ class SegmentationServer:
                 linkURL='/',
                 linkAction='recreate job'
             )
+        elif not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
         else:
             # Valid enqueued job - set cancelled flag to True, and
             logger.log(logging.INFO, 'Cancelling job {jobNum}'.format(jobNum=jobNum))
@@ -823,6 +845,10 @@ class SegmentationServer:
         return []
 
     def serverManagementHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
+
         allJobNums = self.getAllJobNums(confirmedOnly=False)
 
         with open('ServerManagementTableRowTemplate.html', 'r') as f:
@@ -871,16 +897,28 @@ class SegmentationServer:
         )
 
     def restartServerHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
         raise SystemExit("Server restart requested")
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
-        requestedPath = environ['PATH_INFO']
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
         return self.formatError(
             environ,
             errorTitle='Path not recognized',
-            errorMsg='Path {name} not recognized!'.format(name=requestedPath),
+            errorMsg='Path {name} not recognized!'.format(name=environ['PATH_INFO']),
+            linkURL='/',
+            linkAction='return to job creation page'
+        )
+
+    def unauthorizedHandler(self, environ, start_fn):
+        start_fn('404 Not Found', [('Content-Type', 'text/html')])
+        return self.formatError(
+            environ,
+            errorTitle='Not authorized',
+            errorMsg='User {user} is not authorized!'.format(user=getUsername(environ)),
             linkURL='/',
             linkAction='return to job creation page'
         )
