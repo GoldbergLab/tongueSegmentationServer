@@ -395,7 +395,7 @@ class SegmentationServer:
         errorMessages = []
         if not maskSaveDirectory.exists():
             valid = False
-            errorMessages.append('Mask save directory not found: {maskSaveDirectory}'.format(maskSaveDirectory=maskSaveDirectory))
+            errorMessages.append('Mask save directory not found: {maskSaveDirectory}. Hint: Did you pick the right root?'.format(maskSaveDirectory=maskSaveDirectory))
         for videoDir in reRootedVideoDirs:
             if not videoDir.exists():
                 valid = False
@@ -420,11 +420,12 @@ class SegmentationServer:
         # Generate list of videos
         videoList = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
-        jobsAhead = len(self.jobQueue)
-        videosAhead = self.countVideosRemaining()
-
         # Add job parameters to queue
         jobNum = SegmentationServer.newJobNum()
+
+        jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
+        videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+
         self.jobQueue[jobNum] = dict(
             job=None,                               # Job process object
             jobName=jobName,                        # Name/description of job
