@@ -83,7 +83,7 @@ input[type="button"].button-deadly:focus {
 
 /* Thanks to Gavin Michael for the navbar: https://codepen.io/GavinMichael/pen/zZejxX */
 .navBar{
-  background-color: #009cde;
+  background-color: #33C3F0;
   overflow: hidden;
   margin: 0px 0px 20px 0px;
 }
@@ -106,7 +106,7 @@ Removes the underline with text decoration = none.*/
 /*Background color change during hover state*/
 .navBar a.navBarElement:hover{
   background-color: white;
-  color: #009cde;
+  color: #33C3F0;
 }
 
 /*Hides the menu Icon which will show when the nav needs to be responsive*/
