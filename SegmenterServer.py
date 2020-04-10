@@ -22,6 +22,9 @@ import json
 from collections import OrderedDict as odict
 import multiprocessing as mp
 import itertools
+from base64 import b64decode
+import json
+from webob import Request
 
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -64,15 +67,24 @@ for reqFolder in requiredSubfolders:
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
 
-# Set environment variables for authentication
-envVars = dict(os.environ)  # or os.environ.copy()
-USER='glab'
-PASSWORD='password'
+AUTH_FILE = Path('Auth.json')
 try:
-    envVars['WSGI_AUTH_CREDENTIALS']='{UN}:{PW}'.format(UN=USER, PW=PASSWORD)
-finally:
-    os.environ.clear()
-    os.environ.update(envVars)
+    with open(AUTH_FILE, 'r') as f:
+        USERS = json.loads(f.read())
+except:
+    logger.log(logging.ERROR, "Error loading authentication file")
+    USERS = {'glab':'password'}
+
+BASE_USER='glab'
+ADMIN_USER='admin'
+
+# Set environment variables for authentication
+# envVars = dict(os.environ)  # or os.environ.copy()
+# try:
+#     envVars['WSGI_AUTH_CREDENTIALS']='{UN}:{PW}'.format(UN=USER, PW=PASSWORD)
+# finally:
+#     os.environ.clear()
+#     os.environ.update(envVars)
 
 def reRootDirectory(rootMountPoint, pathStyle, directory):
     #   rootMountPoint - the root of the videoDirs. If videoDirs contains a drive root, replace it.
@@ -107,6 +119,14 @@ def getVideoList(videoDirs, videoFilter='*'):
                 videoList.append(videoPath)
     return videoList
 
+def getUsername(environ):
+    request = Request(environ)
+    auth = request.authorization
+    if auth and auth[0] == 'Basic':
+        credentials = b64decode(auth[1]).decode('UTF-8')
+        username, password = credentials.split(':', 1)
+    return username
+
 class UpdaterDaemon(mp.Process):
     def __init__(self,
                 *args,
@@ -133,7 +153,7 @@ class UpdaterDaemon(mp.Process):
 
     def run(self):
         while True:
-            r = requests.get(self.fullURL, auth=(USER, PASSWORD))
+            r = requests.get(self.fullURL, auth=(BASE_USER, USERS[BASE_USER]))
             # # use the opener to fetch a URL
             # self.opener.open(self.fullURL)
             # urllib.request.urlopen(self.fullURL)
@@ -167,11 +187,28 @@ class SegmentationServer:
         self.updaterDaemon.start()
 
     def __call__(self, environ, start_fn):
+        # Handle routing
         for path, handler in self.routes:
             if fnmatch.fnmatch(environ['PATH_INFO'], path):
                 logger.log(logging.DEBUG, 'Matched url {path} to route {route} with handler {handler}'.format(path=environ['PATH_INFO'], route=path, handler=handler))
                 return handler(environ, start_fn)
         return self.invalidHandler(environ, start_fn)
+
+    def formatHTML(self, environ, templateFilename, **parameters):
+        with open('NavBar.html', 'r') as f:
+            navBarHTML = f.read()
+            navBarHTML = navBarHTML.format(user=getUsername(environ))
+
+        with open(templateFilename, 'r') as f:
+            htmlTemplate = f.read()
+            html = htmlTemplate.format(
+                navBarHTML=navBarHTML,
+                **parameters
+            )
+        return [html.encode('utf-8')]
+
+    def formatError(self, environ, errorTitle='Error', errorMsg='Unknown error!', linkURL='/', linkAction='retry job creation'):
+        return self.formatHTML(environ, 'Error.html', errorTitle=errorTitle, errorMsg=errorMsg, linkURL=linkURL, linkAction=linkAction)
 
     def getMountList(self, includePosixLocal=False):
         mounts = {}
@@ -301,29 +338,30 @@ class SegmentationServer:
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
 
-        keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
-        if not all([key in postData for key in keys]):
-            # Not all form parameters got POSTed
+        try:
+            rootMountPoint = postData['rootMountPoint'][0]
+            videoDirs = postData['videoRoot'][0].strip().splitlines()
+            videoFilter = postData['videoFilter'][0]
+            maskSaveDirectory = postData['maskSaveDirectory'][0]
+            pathStyle = postData['pathStyle'][0]
+            topNetworkPath = networksFolder / postData['topNetworkName'][0]
+            botNetworkPath = networksFolder / postData['botNetworkName'][0]
+            binaryThreshold = float(postData['binaryThreshold'][0])
+            topOffset = int(postData['topOffset'][0])
+            topHeight = int(postData['topHeight'][0])
+            botHeight = int(postData['botHeight'][0])
+            jobName = postData['jobName'][0]
+        except KeyError:
+            # Missing one of the postData arguments
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            return [htmlTemplate.format(
-                errorTitle='Bad job creation parameters',
-                errorMsg='One or more job creation parameters missing!',
+            return self.formatError(
+                environ,
+                errorTitle='Missing parameter',
+                errorMsg='All fields are required. Please retry with all fields filled in.',
                 linkURL='/',
-                linkAction='retry job creation'
-                ).encode('utf-8')]
-        rootMountPoint = postData['rootMountPoint'][0]
-        videoDirs = postData['videoRoot'][0].strip().splitlines()
-        videoFilter = postData['videoFilter'][0]
-        maskSaveDirectory = postData['maskSaveDirectory'][0]
-        pathStyle = postData['pathStyle'][0]
-        topNetworkPath = networksFolder / postData['topNetworkName'][0]
-        botNetworkPath = networksFolder / postData['botNetworkName'][0]
-        binaryThreshold = float(postData['binaryThreshold'][0])
-        topOffset = int(postData['topOffset'][0])
-        topHeight = int(postData['topHeight'][0])
-        botHeight = int(postData['botHeight'][0])
-        jobName = postData['jobName'][0]
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'],
             widths=[None, None],
@@ -335,31 +373,33 @@ class SegmentationServer:
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
         maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)
-        # Check that specified directories exist:
+
+        # Check if all parameters are valid. If not, display error and offer to go back
+        valid = True
+        errorMessages = []
+        if not maskSaveDirectory.exists():
+            valid = False
+            errorMessages.append('Mask save directory not found: {maskSaveDirectory}'.format(maskSaveDirectory=maskSaveDirectory))
         for videoDir in reRootedVideoDirs:
             if not videoDir.exists():
-                # Invalid jobNum
-                start_fn('404 Not Found', [('Content-Type', 'text/html')])
-                with open('Error.html', 'r') as f: htmlTemplate = f.read()
-                errorMsg = 'Video directory not found: {videoDir}'.format(videoDir=videoDir)
-                return [htmlTemplate.format(
-                    errorTitle='Invalid video directory',
-                    errorMsg=errorMsg,
-                    linkURL='/',
-                    linkAction='recreate job'
-                    ).encode('utf-8')]
-        # Check that specified maskSaveDirectory exists:
-        if not maskSaveDirectory.exists():
-            # Invalid jobNum
+                valid = False
+                errorMessages.append('Video directory not found: {videoDir}'.format(videoDir=videoDir))
+        # keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
+        # missingKeys = [key for key in keys if key not in postData]
+        # if len(missingKeys) > 0:
+        #     # Not all form parameters got POSTed
+        #     valid = False
+        #     errorMessages.append('Job creation parameters missing: {params}'.format(params=', '.join(missingKeys)))
+
+        if not valid:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            errorMsg = 'Mask save directory not found: {maskSaveDirectory}'.format(maskSaveDirectory=maskSaveDirectory)
-            return [htmlTemplate.format(
-                errorTitle='Invalid mask save directory',
-                errorMsg=errorMsg,
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job parameter',
+                errorMsg="<br/>".join(errorMessages),
                 linkURL='/',
-                linkAction='recreate job'
-                ).encode('utf-8')]
+                linkAction='return to job creation page (or use browser back button)'
+                )
 
         # Generate list of videos
         videoList = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
@@ -367,24 +407,12 @@ class SegmentationServer:
         jobsAhead = len(self.jobQueue)
         videosAhead = self.countVideosRemaining()
 
-        # Check if all parameters are valid. If not, display error and offer to go back
-        valid = True
-        errorMessages = []
-        if not valid:
-            errorMessage = "<br/>".join(errorMessages)
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            return [htmlTemplate.format(
-                errorTitle='Invalid job parameter',
-                errorMsg=errorMessages,
-                linkURL='javascript:history.back()',
-                linkAction='return to job creation page'
-                ).encode('utf-8')]
         # Add job parameters to queue
         jobNum = SegmentationServer.newJobNum()
         self.jobQueue[jobNum] = dict(
             job=None,                               # Job process object
             jobName=jobName,                        # Name/description of job
+            owner=getUsername(environ),             # Owner of job, has special privileges
             jobNum=jobNum,                          # Job ID
             confirmed=False,                        # Has user confirmed params yet
             cancelled=False,                        # Has the user cancelled this job?
@@ -402,20 +430,21 @@ class SegmentationServer:
         )
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
-        with open('FinalizeJob.html', 'r') as f: htmlTemplate = f.read()
-        return [htmlTemplate.format(
-videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
-topNetworkName=topNetworkPath.name,
-botNetworkName=botNetworkPath.name,
-binaryThreshold=binaryThreshold,
-topOffset=topOffset,
-topHeight=topHeight,
-botHeight=botHeight,
-jobID=jobNum,
-jobName=jobName,
-jobsAhead=jobsAhead,
-videosAhead=videosAhead
-        ).encode('utf-8')]
+        return self.formatHTML(
+            environ,
+            'FinalizeJob.html',
+            videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
+            topNetworkName=topNetworkPath.name,
+            botNetworkName=botNetworkPath.name,
+            binaryThreshold=binaryThreshold,
+            topOffset=topOffset,
+            topHeight=topHeight,
+            botHeight=botHeight,
+            jobID=jobNum,
+            jobName=jobName,
+            jobsAhead=jobsAhead,
+            videosAhead=videosAhead
+        )
 
     def startJob(self, jobNum):
         self.jobQueue[jobNum]['job'] = ServerJob(
@@ -451,14 +480,13 @@ videosAhead=videosAhead
         if jobNum not in self.getQueuedJobNums(confirmedOnly=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            errorMsg = 'Invalid job ID {jobID}'.format(jobID=jobNum)
-            return [htmlTemplate.format(
+            return self.formatError(
+                environ,
                 errorTitle='Invalid job ID',
-                errorMsg=errorMsg,
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
                 linkURL='/',
                 linkAction='recreate job'
-                ).encode('utf-8')]
+                )
         else:
             # Valid enqueued job - set confirmed flag to True, so it can be started when at the front
             self.jobQueue[jobNum]['confirmed'] = True
@@ -573,15 +601,13 @@ videosAhead=videosAhead
         if jobNum not in allJobNums:
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            errorMsg = 'Invalid job ID {jobID}'.format(jobID=jobNum)
-            return [htmlTemplate.format(
+            return self.formatError(
+                environ,
                 errorTitle='Invalid job ID',
-                errorMsg=errorMsg,
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
                 linkURL='/',
                 linkAction='create a new job'
-                ).encode('utf-8')]
-
+                )
         if self.jobQueue[jobNum]['job'] is not None:
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
             jobStateName = ServerJob.stateList[jobState]
@@ -689,9 +715,15 @@ videosAhead=videosAhead
 
         logHTML = self.formatLogHTML(self.jobQueue[jobNum]['log'])
 
+        owner = self.jobQueue[jobNum]['owner']
+        if owner == getUsername(environ):
+            owner = owner + " (you)"
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
-        return [htmlTemplate.format(
+        return self.formatHTML(
+            environ,
+            'CheckProgress.html',
             meanTime=meanTimeStr,
             confInt=timeConfIntStr,
             videoList=completedVideoListHTML,
@@ -699,6 +731,7 @@ videosAhead=videosAhead
             jobNum=jobNum,
             estimatedTimeRemaining=estimatedTimeRemaining,
             jobName=self.jobQueue[jobNum]['jobName'],
+            owner=owner,
             creationTime=creationTime,
             startTime=startTime,
             completionTime=completionTime,
@@ -716,7 +749,7 @@ videosAhead=videosAhead
             topOffset=topOffset,
             topHeight=topHeight,
             botHeight=botHeight
-        ).encode('utf-8')]
+        )
 
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
@@ -734,28 +767,32 @@ videosAhead=videosAhead
 
         logger.log(logging.INFO, 'Creating return data')
 
+        username = getUsername(environ)
+
         if len(neuralNetworkList) > 0:
             networkOptionText = self.createOptionList(neuralNetworkList)
-            with open('Index.html', 'r') as f: htmlTemplate = f.read()
             start_fn('200 OK', [('Content-Type', 'text/html')])
-            return [htmlTemplate.format(
+            return self.formatHTML(
+                environ,
+                'Index.html',
                 query=queryString,
                 mounts=mountList,
-                environ=environ,
+                # environ=environ,
                 input=postData,
+                remoteUser=username,
                 path=environ['PATH_INFO'],
                 nopts=networkOptionText,
-                mopts=mountOptionsText).encode('utf-8')]
+                mopts=mountOptionsText
+                )
         else:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            errorMsg = 'No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER)
-            return [htmlTemplate.format(
+            return self.formatError(
+                environ,
                 errorTitle='Neural network error',
-                errorMsg=errorMsg,
+                errorMsg='No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER),
                 linkURL='/',
                 linkAction='retry job creation once a neural network has been uploaded'
-                ).encode('utf-8')]
+            )
 
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNum from URL
@@ -763,14 +800,13 @@ videosAhead=videosAhead
         if jobNum not in self.getAllJobNums(confirmedOnly=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            errorMsg = 'Invalid job ID {jobID}'.format(jobID=jobNum)
-            return [htmlTemplate.format(
+            return self.formatError(
+                environ,
                 errorTitle='Invalid job ID',
-                errorMsg=errorMsg,
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
                 linkURL='/',
                 linkAction='recreate job'
-                ).encode('utf-8')]
+            )
         else:
             # Valid enqueued job - set cancelled flag to True, and
             logger.log(logging.INFO, 'Cancelling job {jobNum}'.format(jobNum=jobNum))
@@ -826,13 +862,13 @@ videosAhead=videosAhead
                 state=state,
             ))
         jobEntryTableBody = '\n'.join(jobEntries)
-        with open('ServerManagement.html', 'r') as f: htmlTemplate = f.read()
-        html = htmlTemplate.format(
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'ServerManagement.html',
             tbody=jobEntryTableBody,
             startTime=serverStartTime
-            )
-        start_fn('200 OK', [('Content-Type', 'text/html')])
-        return [html.encode('utf-8')]
+        )
 
     def restartServerHandler(self, environ, start_fn):
         raise SystemExit("Server restart requested")
@@ -841,14 +877,13 @@ videosAhead=videosAhead
         logger.log(logging.INFO, 'Serving invalid warning')
         requestedPath = environ['PATH_INFO']
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
-        with open('Error.html', 'r') as f: htmlTemplate = f.read()
-        errorMsg = 'No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER)
-        return [htmlTemplate.format(
+        return self.formatError(
+            environ,
             errorTitle='Path not recognized',
             errorMsg='Path {name} not recognized!'.format(name=requestedPath),
             linkURL='/',
             linkAction='return to job creation page'
-            ).encode('utf-8')]
+        )
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
@@ -859,7 +894,7 @@ if __name__ == '__main__':
     logger.log(logging.INFO, 'Spinning up server!')
     while True:
         s = SegmentationServer(webRoot=ROOT, port=port)
-        application = BasicAuth(s)
+        application = BasicAuth(s, users=USERS)
         try:
             logger.log(logging.INFO, 'Starting segmentation server...')
             serve(application, host='0.0.0.0', port=port)
