@@ -79,7 +79,7 @@ def loadAuth():
             userData = json.loads(f.read())
     except:
         logger.log(logging.ERROR, "Error loading authentication file")
-        userData = {'glab':['password', 0]}
+        sys.exit()
     users = dict((user, userData[user][0]) for user in userData)
     user_lvls = dict((user, userData[user][1]) for user in userData)
     return users, user_lvls
@@ -479,21 +479,21 @@ class SegmentationServer:
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
-    def getUnconfirmedJobNums(self):
+    def getUnconfirmedJobNums(self, owner=None):
         # Get a list of job nums of unconfirmed jobs
-        return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed']]
-    def getQueuedJobNums(self, confirmedOnly=True):
+        return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed'] and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    def getQueuedJobNums(self, confirmedOnly=True, owner=None):
         # Get a list of job nums for queued jobs, in the queue order
-        return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed']))]
-    def getActiveJobNums(self):
+        return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    def getActiveJobNums(self, owner=None):
         # Get a list of active job nums
-        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is None]
-    def getCompletedJobNums(self):
+        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    def getCompletedJobNums(self, owner=None):
         # Get a list of completed job nums
-        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and self.jobQueue[jobNum]['completionTime'] is not None]
-    def getAllJobNums(self, confirmedOnly=True):
+        return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is not None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
+    def getAllJobNums(self, confirmedOnly=True, owner=None):
         # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-        return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed']))]
+        return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
