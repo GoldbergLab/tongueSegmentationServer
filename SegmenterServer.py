@@ -474,28 +474,57 @@ class SegmentationServer:
             **self.jobQueue[jobNum]
             )
 
+        logger.log(logging.INFO, 'Starting job {jobNum}'.format(jobNum=jobNum))
         self.jobQueue[jobNum]['job'].start()
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.START, None))
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
-    def getJobNums(self, confirmed=None, active=None, completed=None, owner=None, succeeded=None, failed=None, cancelled=None):
+    def isConfirmed(self, jobNum):
+        return self.jobQueue[jobNum]['confirmed']
+    def isCancelled(self, jobNum):
+        return self.jobQueue[jobNum]['cancelled']
+    def isStarted(self, jobNum):
+        return (self.jobQueue[jobNum]['job'] is not None) and (self.jobQueue[jobNum]['startTime'] is not None)
+    def isActive(self, jobNum):
+        return (self.isStarted(jobNum)) and (not self.isComplete(jobNum))
+    def isComplete(self, jobNum):
+        return (self.jobQueue[jobNum]['exitCode'] != ServerJob.INCOMPLETE) or (self.jobQueue[jobNum]['completionTime'] is not None)
+    def isSucceeded(self, jobNum):
+        return (self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCEEDED)
+    def isFailed(self, jobNum):
+        return (self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED)
+    def isOwnedBy(self, jobNum, owner):
+        return (self.jobQueue[jobNum]['owner'] == owner)
+
+    def getJobNums(self, confirmed=None, started=None, active=None, completed=None, owner=None, succeeded=None, failed=None, cancelled=None):
         # For each filter argument, "None" means do not filter
         jobNums = []
         for jobNum in self.jobQueue:
             job = self.jobQueue[jobNum]
-            if   (owner is not None) and (owner != job['owner']):
+            logger.log(logging.INFO, "Job {jobNum} checking for inclusion...".format(jobNum=jobNum))
+            if   (owner is not None) and (not self.isOwnedBy(jobNum, owner)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by owned filter".format(jobNum=jobNum))
                 continue
-            elif (confirmed is not None) and (confirmed != job['confirmed']):
+            elif (confirmed is not None) and (confirmed != self.isConfirmed(jobNum)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by confirmed filter".format(jobNum=jobNum))
                 continue
-            elif (active is not None) and ((active != (job['job'] is not None)) or (active != (job['completionTime'] is None))):
+            elif (active is not None) and (active != self.isActive(jobNum)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by active filter".format(jobNum=jobNum))
                 continue
-            elif (completed is not None) and (completed != (job['completionTime'] is not None)):
+            elif (completed is not None) and (completed != self.isComplete(jobNum)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by completed filter".format(jobNum=jobNum))
                 continue
-            elif (succeeded is not None) and (succeeded != (job['exitCode'] == ServerJob.SUCCEEDED)):
+            elif (succeeded is not None) and (succeeded != self.isSucceeded(jobNum)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by succeeded filter".format(jobNum=jobNum))
                 continue
-            elif (failed is not None) and (failed != (job['exitCode'] == ServerJob.FAILED)):
+            elif (failed is not None) and (failed != self.isFailed(jobNum)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by failed filter".format(jobNum=jobNum))
                 continue
+            elif (started is not None) and (started != self.isStarted(jobNum)):
+                logger.log(logging.INFO, "Job {jobNum} rejected by started filter".format(jobNum=jobNum))
+                continue
+            logger.log(logging.INFO, "Job {jobNum} accepted".format(jobNum=jobNum))
             jobNums.append(jobNum)
         return jobNums
 
@@ -518,6 +547,7 @@ class SegmentationServer:
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
+        logger.log(logging.INFO, 'getJobNums(active=False, completed=False) - is job {jobNum} ready for confirming?'.format(jobNum=jobNum))
         if jobNum not in self.getJobNums(active=False, completed=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -569,11 +599,11 @@ class SegmentationServer:
 
     def updateJobQueue(self):
         # Remove stale unconfirmed jobs:
-        print("removing unconfirmed jobs")
+        logger.log(logging.INFO, "getJobNums(confirmed=False) - removing unconfirmed jobs")
         for jobNum in self.getJobNums(confirmed=False):
             self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
         # Check if the current job is done. If it is, remove it and start the next job
-        print("checking if active job is done")
+        logger.log(logging.INFO, "getJobNums(active=True) checking if active job is done")
         for jobNum in self.getJobNums(active=True):
             # Loop over active jobs, see if they're done, and pop them off if so
             job = self.jobQueue[jobNum]['job']
@@ -605,10 +635,12 @@ class SegmentationServer:
             elif jobState == -1:
                 pass
 
+        logger.log(logging.INFO, "getJobNums(active=True) - checking if room for new job")
         if len(self.getJobNums(active=True)) < self.maxActiveJobs:
             # Start the next job, if any
             # Loop over confirmed, inactive (queued) job nums
-            for jobNum in self.getJobNums(active=False, confirmed=True):
+            logger.log(logging.INFO, "getJobNums(active=False, confirmed=True) - looking for job to start")
+            for jobNum in self.getJobNums(confirmed=True, started=False, completed=False):
                 # This is the next queued confirmed job - start it
                 self.startJob(jobNum)
                 break;
@@ -886,18 +918,18 @@ class SegmentationServer:
         jobEntries = []
         for jobNum in allJobNums:
             state = 'Unknown'
-            if self.jobQueue[jobNum]['cancelled']:
+            if self.isCancelled(jobNum):
                 state = 'Cancelled'
             elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
-                if not self.jobQueue[jobNum]['confirmed']:
+                if not self.isConfirmed(jobNum):
                     state = 'Unconfirmed'
                 elif self.jobQueue[jobNum]['startTime'] is None:
                     state = 'Enqueued'
                 else:
                     state = 'Working'
-            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCEEDED:
+            elif self.isSucceeded(jobNum):
                 state = 'Succeeded'
-            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED:
+            elif self.isFailed(jobNum):
                 state = 'Failed'
 
             numVideos = len(self.jobQueue[jobNum]['videoList'])
