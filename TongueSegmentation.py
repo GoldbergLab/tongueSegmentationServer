@@ -21,6 +21,8 @@ class SegmentationSpecification:
         # Fill xOffets with zeros
         xOffsets = xOffsets + [0 for k in range(N - len(xOffsets))]
         yOffsets = yOffsets + [0 for k in range(N - len(yOffsets))]
+        widths = widths + [None for k in range(N - len(widths))]
+        heights = heights + [None for k in range(N - len(heights))]
 
         self.partNames = partNames
         self._maskDims = dict(zip(partNames, zip(widths, heights, xOffsets, yOffsets)))
