@@ -162,14 +162,17 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
         # Generate gif of the latest mask for monitoring purposes
-        gifSaveName = gifSaveTemplate.format(partName=partName)
-        gifSavePath = Path(maskSaveDirectory) / gifSaveName
-        print(maskPredictions[partName].shape, maskPredictions[partName].dtype)
-        spaceSkip = 3; timeSkip = 15
-        gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
-        gifData = np.stack([gifData, gifData, gifData])
-        gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
-        write_gif(gifData, gifSavePath)
+        try:
+            gifSaveName = gifSaveTemplate.format(partName=partName)
+            gifSavePath = Path(maskSaveDirectory) / gifSaveName
+            print(maskPredictions[partName].shape, maskPredictions[partName].dtype)
+            spaceSkip = 3; timeSkip = 15
+            gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
+            gifData = np.stack([gifData, gifData, gifData])
+            gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
+            write_gif(gifData, gifSavePath)
+        except:
+            print("Mask preview creation failed.")
 
         # Save mask to disk
         savemat(savePath,{'mask_pred':maskPredictions[partName]},do_compression=True)
