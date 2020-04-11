@@ -83,12 +83,16 @@ class SegmentationSpecification:
                 h = hFrame - y
             self._maskDims[partName] = [w, h, x, y]
 
-    def initializeNetworks(self, partNames=None):
+    def initializeNetworks(self, partNames=None, loadShape=True):
         clear_session()
         if partNames is None:
             partNames = self._networkPaths.keys()
         for partName in partNames:
             self._networks[partName] = load_model(self._networkPaths[partName])
+            if loadShape:
+                _, h, w, _ = self._networks[partName].input_shape
+                self._maskDims[partName][0] = w
+                self._maskDims[partName][1] = h
 
 # def initializeNeuralNetwork(neuralNetworkPath):
 #     clear_session()
