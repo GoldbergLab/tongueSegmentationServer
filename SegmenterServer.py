@@ -368,8 +368,6 @@ class SegmentationServer:
             botNetworkPath = NETWORKS_FOLDER / postData['botNetworkName'][0]
             binaryThreshold = float(postData['binaryThreshold'][0])
             topOffset = int(postData['topOffset'][0])
-            topHeight = int(postData['topHeight'][0])
-            botHeight = int(postData['botHeight'][0])
             jobName = postData['jobName'][0]
         except KeyError:
             # Missing one of the postData arguments
@@ -384,9 +382,6 @@ class SegmentationServer:
 
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'],
-            widths=[None, None],
-            heights=[botHeight, topHeight],
-            xOffsets=[0, 0],
             yOffsets=[0, topOffset],
             neuralNetworkPaths=[topNetworkPath, botNetworkPath]
         )
@@ -459,8 +454,6 @@ class SegmentationServer:
             botNetworkName=botNetworkPath.name,
             binaryThreshold=binaryThreshold,
             topOffset=topOffset,
-            topHeight=topHeight,
-            botHeight=botHeight,
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
@@ -699,8 +692,6 @@ class SegmentationServer:
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYLim('Top')[0]
-        topHeight = segSpec.getHeight('Top')
-        botHeight = segSpec.getHeight('Bot')
 
         creationTime = ""
         startTime = "Not started yet"
@@ -825,8 +816,6 @@ class SegmentationServer:
             topNetworkName=topNetworkName,
             botNetworkName=botNetworkName,
             topOffset=topOffset,
-            topHeight=topHeight,
-            botHeight=botHeight
         )
 
     def rootHandler(self, environ, start_fn):
