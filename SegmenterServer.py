@@ -27,7 +27,7 @@ import json
 from webob import Request
 
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 def initializeLogger():
     logger = logging.getLogger(__name__)
@@ -502,29 +502,29 @@ class SegmentationServer:
         jobNums = []
         for jobNum in self.jobQueue:
             job = self.jobQueue[jobNum]
-            logger.log(logging.INFO, "Job {jobNum} checking for inclusion...".format(jobNum=jobNum))
+            # logger.log(logging.INFO, "Job {jobNum} checking for inclusion...".format(jobNum=jobNum))
             if   (owner is not None) and (not self.isOwnedBy(jobNum, owner)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by owned filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by owned filter".format(jobNum=jobNum))
                 continue
             elif (confirmed is not None) and (confirmed != self.isConfirmed(jobNum)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by confirmed filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by confirmed filter".format(jobNum=jobNum))
                 continue
             elif (active is not None) and (active != self.isActive(jobNum)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by active filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by active filter".format(jobNum=jobNum))
                 continue
             elif (completed is not None) and (completed != self.isComplete(jobNum)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by completed filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by completed filter".format(jobNum=jobNum))
                 continue
             elif (succeeded is not None) and (succeeded != self.isSucceeded(jobNum)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by succeeded filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by succeeded filter".format(jobNum=jobNum))
                 continue
             elif (failed is not None) and (failed != self.isFailed(jobNum)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by failed filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by failed filter".format(jobNum=jobNum))
                 continue
             elif (started is not None) and (started != self.isStarted(jobNum)):
-                logger.log(logging.INFO, "Job {jobNum} rejected by started filter".format(jobNum=jobNum))
+                # logger.log(logging.INFO, "Job {jobNum} rejected by started filter".format(jobNum=jobNum))
                 continue
-            logger.log(logging.INFO, "Job {jobNum} accepted".format(jobNum=jobNum))
+            # logger.log(logging.INFO, "Job {jobNum} accepted".format(jobNum=jobNum))
             jobNums.append(jobNum)
         return jobNums
 
@@ -547,7 +547,7 @@ class SegmentationServer:
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        logger.log(logging.INFO, 'getJobNums(active=False, completed=False) - is job {jobNum} ready for confirming?'.format(jobNum=jobNum))
+#        logger.log(logging.INFO, 'getJobNums(active=False, completed=False) - is job {jobNum} ready for confirming?'.format(jobNum=jobNum))
         if jobNum not in self.getJobNums(active=False, completed=False):
             # Invalid jobNum
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -599,11 +599,11 @@ class SegmentationServer:
 
     def updateJobQueue(self):
         # Remove stale unconfirmed jobs:
-        logger.log(logging.INFO, "getJobNums(confirmed=False) - removing unconfirmed jobs")
+#        logger.log(logging.INFO, "getJobNums(confirmed=False) - removing unconfirmed jobs")
         for jobNum in self.getJobNums(confirmed=False):
             self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
         # Check if the current job is done. If it is, remove it and start the next job
-        logger.log(logging.INFO, "getJobNums(active=True) checking if active job is done")
+#        logger.log(logging.INFO, "getJobNums(active=True) checking if active job is done")
         for jobNum in self.getJobNums(active=True):
             # Loop over active jobs, see if they're done, and pop them off if so
             job = self.jobQueue[jobNum]['job']
@@ -635,11 +635,11 @@ class SegmentationServer:
             elif jobState == -1:
                 pass
 
-        logger.log(logging.INFO, "getJobNums(active=True) - checking if room for new job")
+#        logger.log(logging.INFO, "getJobNums(active=True) - checking if room for new job")
         if len(self.getJobNums(active=True)) < self.maxActiveJobs:
             # Start the next job, if any
             # Loop over confirmed, inactive (queued) job nums
-            logger.log(logging.INFO, "getJobNums(active=False, confirmed=True) - looking for job to start")
+#            logger.log(logging.INFO, "getJobNums(active=False, confirmed=True) - looking for job to start")
             for jobNum in self.getJobNums(confirmed=True, started=False, completed=False):
                 # This is the next queued confirmed job - start it
                 self.startJob(jobNum)
