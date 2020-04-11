@@ -24,13 +24,13 @@ class SegmentationSpecification:
         widths = widths + [None for k in range(N - len(widths))]
         heights = heights + [None for k in range(N - len(heights))]
 
-        self.partNames = partNames
-        self._maskDims = dict(zip(partNames, zip(widths, heights, xOffsets, yOffsets)))
+        self._partNames = partNames
+        self._maskDims = dict(zip(partNames, [list(dims) for dims in zip(widths, heights, xOffsets, yOffsets)]))
         self._networkPaths = dict(zip(partNames, neuralNetworkPaths))
         self._networks = dict(zip(partNames, [None for k in partNames]))
 
     def getPartNames(self):
-        return self.partNames
+        return self._partNames
 
     def getNetworkPath(self, partName):
         return self._networkPaths[partName]
