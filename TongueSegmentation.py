@@ -9,6 +9,8 @@ import glob
 import cv2
 import numpy as np
 from pathlib import Path
+from array2gif import write_gif
+
 #import matplotlib.pyplot as plt
 
 class SegmentationSpecification:
@@ -146,6 +148,8 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
 
     cap.release()
 
+    gifSaveTemplate = "{partName}.gif"
+
     # Make predictions and save to disk
     maskPredictions = {}
     for partName in segSpec.getPartNames():
@@ -157,5 +161,15 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
         # Generate save name for mask
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
+        # Generate gif of the latest mask for monitoring purposes
+        gifSaveName = gifSaveTemplate.format(partName=partName)
+        gifSavePath = Path(maskSaveDirectory) / gifSaveName
+        print(maskPredictions[partName].shape, maskPredictions[partName].dtype)
+        spaceSkip = 3; timeSkip = 15
+        gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
+        gifData = np.stack([gifData, gifData, gifData])
+        gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
+        write_gif(gifData, gifSavePath)
+
         # Save mask to disk
         savemat(savePath,{'mask_pred':maskPredictions[partName]},do_compression=True)
