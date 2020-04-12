@@ -771,7 +771,7 @@ class SegmentationServer:
         segSpec = self.jobQueue[jobNum]['SegSpec']
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
-        topOffset = segSpec.getYLim('Top')[0]
+        topOffset = segSpec.getYOffset('Top')
         topHeight = segSpec.getHeight('Top')
         botHeight = segSpec.getHeight('Bot')
         if topHeight is None:
