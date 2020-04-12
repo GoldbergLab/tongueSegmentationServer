@@ -139,6 +139,7 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 # Get info on how to separate the frame into parts
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
+                print("Slicing part {part}: x={x}, y={y}".format(part=partName, x=xS, y=yS))
                 # Write the frame part into the video buffer array
 #                h, w = frame[yS, xS, 1].shape
                 imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, segSpec.getHeight(partName), segSpec.getWidth(partName), 1)
