@@ -355,8 +355,8 @@ class SegmentationServer:
             if beforeJobNum is not None and jobNum == beforeJobNum:
                 # This is the specified job num - stop, don't count any more
                 break
-            if self.jobQueue[jobNum]['completionTime'] is None:
-                if self.jobQueue[jobNum]['startTime'] is None:
+            if not self.isComplete(jobNum):
+                if not self.isStarted(jobNum):
                     queuedJobsAhead += 1
                 else:
                     activeJobsAhead += 1
@@ -737,7 +737,6 @@ class SegmentationServer:
         with preview.open('rb') as f:
             return [f.read()]
 
-
     def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
@@ -840,13 +839,13 @@ class SegmentationServer:
         processDead = "true"
         if exitCode == ServerJob.INCOMPLETE:
             processDead = "false"
-            if self.jobQueue[jobNum]['startTime'] is None:
+            if self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
-                if self.jobQueue[jobNum]['cancelled']:
+                if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
                     stateDescription = 'This job has been cancelled.'
-                elif self.jobQueue[jobNum]['confirmed']:
+                elif self.isConfirmed(jobNum):
                     exitCodePhrase = 'is enqueued, but not started.'
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
@@ -858,17 +857,17 @@ class SegmentationServer:
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
                                         remaining. Your job will be enqueued after you confirm it.'
             else:
-                if self.jobQueue[jobNum]['cancelled']:
+                if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
                     stateDescription = 'This job has been cancelled, and will stop after the current video is complete. All existing masks will remain in place. Stand by...'
                 else:
                     exitCodePhrase = 'is <strong>in progress</strong>!'
-        elif exitCode == ServerJob.SUCCEEDED:
-            if self.jobQueue[jobNum]['cancelled']:
+        elif self.isSucceeded(jobNum):
+            if self.isCancelled(jobNum):
                 exitCodePhrase = 'has been <strong>cancelled</strong>.'
             else:
                 exitCodePhrase = 'is <strong>complete!</strong>'
-        elif exitCode == ServerJob.FAILED:
+        elif self.isFailed(jobNum):
             exitCodePhrase = 'has exited with errors :(  Please see debug output below.'
         else:
             exitCodePhrase = 'is in an unknown exit code state...'
@@ -981,8 +980,8 @@ class SegmentationServer:
             now = time.time_ns()
             if self.jobQueue[jobNum]['creationTime'] is None:
                 self.jobQueue[jobNum]['creationTime'] = now
-            if self.jobQueue[jobNum]['startTime'] is None:
-                self.jobQueue[jobNum]['startTime'] = now
+            # if self.jobQueue[jobNum]['startTime'] is None:
+            #     self.jobQueue[jobNum]['startTime'] = now
             self.jobQueue[jobNum]['completionTime'] = now
             if self.jobQueue[jobNum]['job'] is not None:
                 self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.EXIT, None))
