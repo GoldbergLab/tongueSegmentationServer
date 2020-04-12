@@ -132,6 +132,7 @@ class SegSpec:
         # Initialize segspec with video information, so we can give more informed output
         self.frameW = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.frameH = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print('Got frame size from video: {w} x {h}'.format(w=self.frameW, h=self.frameH))
         for partName in self._maskDims:
             [w, h, x, y] = self._maskDims[partName]
             if w is None:
@@ -155,8 +156,10 @@ class SegSpec:
                         # Load width and height based on neural network input shapes
                         try:
                             _, h, w, _ = self._networks[partName].input_shape
+                            print('Got mask shape from neural network: {w} x {h}'.format(w=w, h=h))
                         except:
                             # Loading shape from neural network failed
+                            print('Was not able to load mask shape from neural network')
                             w = None
                             h = None
                         if w is not None and (overwriteShape or (self._maskDims[partName][0] is None)):
@@ -175,10 +178,6 @@ class SegSpec:
         with self._graphs[partName].as_default():
             with self._sessions[partName].as_default():
                 return self._networks[partName].predict(imageBuffer)
-
-# def initializeNeuralNetwork(neuralNetworkPath):
-#     clear_session()
-#     return load_model(neuralNetworkPath)
 
 def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3, generatePreview=True):
     # Save one or more predicted mask files for a given video and segmenting neural network
@@ -217,7 +216,6 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
                 # Write the frame part into the video buffer array
-#                h, w = frame[yS, xS, 1].shape
                 imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, segSpec.getHeight(partName), segSpec.getWidth(partName), 1)
             k = k+1
         # Break the loop
