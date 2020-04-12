@@ -880,6 +880,12 @@ class SegmentationServer:
         if owner == getUsername(environ):
             owner = owner + " (you)"
 
+        generatePreview = self.jobQueue[jobNum]['generatePreview']
+        if not generatePreview:
+            hidePreview = "hidden"
+        else:
+            hidePreview = ""
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
         return self.formatHTML(
@@ -910,10 +916,11 @@ class SegmentationServer:
             topOffset=topOffset,
             topHeight=topHeightText,
             botHeight=botHeightText,
-            generatePreview=self.jobQueue[jobNum]['generatePreview'],
+            generatePreview=generatePreview,
             topMaskPreviewSrc=topMaskPreviewSrc,
             botMaskPreviewSrc=botMaskPreviewSrc,
-            autoReloadInterval=AUTO_RELOAD_INTERVAL
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
+            hidePreview=hidePreview
         )
 
     def rootHandler(self, environ, start_fn):
