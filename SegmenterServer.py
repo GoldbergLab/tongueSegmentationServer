@@ -192,6 +192,7 @@ class SegmentationServer:
             ('/cancelJob/*',        self.cancelJobHandler),
             ('/serverManagement',   self.serverManagementHandler),
             ('/restartServer',      self.restartServerHandler),
+            ('/maskPreview/*',      self.getMaskPreviewHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -312,6 +313,24 @@ class SegmentationServer:
                         yield line.encode('utf-8')
             elif subfolder == "favicon":
                 start_fn('200 OK', [('Content-Type', "image/x-icon")])
+                with requestedStaticFilePath.open('rb') as f:
+                    yield f.read()
+            elif subfolder == "images":
+                type = requestedStaticFilePath.suffix.strip('.').lower()
+                if type not in ['png', 'gif', 'bmp', 'jpg', 'jpeg', 'ico', 'tiff']:
+                    start_fn('404 Not Found', [('Content-Type', 'text/html')])
+                    yield self.formatError(
+                        environ,
+                        errorTitle='Unknown image type',
+                        errorMsg='Unknown image type: {type}'.format(type=type),
+                        linkURL='/',
+                        linkAction='return to job creation page (or use browser back button)'
+                        )
+                if type == 'jpg': type = 'jpeg'
+                if type in ['ico', 'cur']: type = 'x-icon'
+                if type == 'svg': type = 'svg+xml'
+                if type == 'tif': type = 'tiff'
+                start_fn('200 OK', [('Content-Type', "image/{type}".format(type=type))])
                 with requestedStaticFilePath.open('rb') as f:
                     yield f.read()
         else:
@@ -521,22 +540,6 @@ class SegmentationServer:
             jobNums.append(jobNum)
         return jobNums
 
-    # def getUnconfirmedJobNums(self, owner=None):
-    #     # Get a list of job nums of unconfirmed jobs
-    #     return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed'] and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getQueuedJobNums(self, confirmedOnly=True, owner=None):
-    #     # Get a list of job nums for queued jobs, in the queue order
-    #     return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getActiveJobNums(self, owner=None):
-    #     # Get a list of active job nums
-    #     return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getCompletedJobNums(self, owner=None):
-    #     # Get a list of completed job nums
-    #     return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is not None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getAllJobNums(self, confirmedOnly=True, owner=None):
-    #     # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-    #     return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
@@ -664,6 +667,48 @@ class SegmentationServer:
         logHTML = "\n".join(logHTMLList)
         return logHTML
 
+    def getMaskPreviewHandler(self, environ, start_fn):
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-2])
+        if jobNum not in self.jobQueue:
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job ID',
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
+                linkURL='/',
+                linkAction='create a new job'
+                )
+
+        maskPart = environ['PATH_INFO'].split('/')[-1].lower()
+        if maskPart == "top":
+            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Top.gif'
+        elif maskPart == "bot":
+            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Bot.gif'
+        else:
+            # Invalid mask part
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid mask part',
+                errorMsg='Invalid mask part: {maskPart}'.format(maskPart=maskPart),
+                linkURL='/',
+                linkAction='create a new job'
+                )
+
+        if not preview.exists():
+            # Preview mask doesn't exist. Instead, serve a static placeholder gif
+            print("Path info was:", environ['PATH_INFO'])
+            environ['PATH_INFO'] = "/static/images/MaskPreviewPlaceholder.gif"
+            print("Path info is:", environ['PATH_INFO'])
+            return self.staticHandler(environ, start_fn)
+
+        start_fn('200 OK', [('Content-Type', "image/gif")])
+        with preview.open('rb') as f:
+            yield f.read()
+
+
     def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
@@ -680,18 +725,25 @@ class SegmentationServer:
                 linkAction='create a new job'
                 )
         if self.jobQueue[jobNum]['job'] is not None:
+            # Job has started. Check its state
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
             jobStateName = ServerJob.stateList[jobState]
+            # Get all pending updates on its progress
             self.updateJobProgress(jobNum)
         else:
+            # Job has not started
             jobStateName = "ENQUEUED"
 
+        # Get some parameters about job ready for display
         binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
         maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
         segSpec = self.jobQueue[jobNum]['segmentationSpecification']
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYLim('Top')[0]
+
+        topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
+        botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
 
         creationTime = ""
         startTime = "Not started yet"
@@ -816,6 +868,8 @@ class SegmentationServer:
             topNetworkName=topNetworkName,
             botNetworkName=botNetworkName,
             topOffset=topOffset,
+            topMaskPreviewSrc=topMaskPreviewSrc,
+            botMaskPreviewSrc=botMaskPreviewSrc
         )
 
     def rootHandler(self, environ, start_fn):
