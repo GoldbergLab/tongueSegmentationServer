@@ -472,7 +472,7 @@ class SegmentationServer:
             cancelled=False,                        # Has the user cancelled this job?
             videoList=videoList,                    # List of video paths to process
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
-            SegSpec=segSpec,      # SegSpec
+            segSpec=segSpec,                        # segSpec
             generatePreview=generatePreview,        # Should we generate gif previews of masks?
             binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
@@ -768,7 +768,7 @@ class SegmentationServer:
         # Get some parameters about job ready for display
         binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
         maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
-        segSpec = self.jobQueue[jobNum]['SegSpec']
+        segSpec = self.jobQueue[jobNum]['segSpec']
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYOffset('Top')
