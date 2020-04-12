@@ -165,7 +165,6 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
         try:
             gifSaveName = gifSaveTemplate.format(partName=partName)
             gifSavePath = Path(maskSaveDirectory) / gifSaveName
-            print(maskPredictions[partName].shape, maskPredictions[partName].dtype)
             spaceSkip = 3; timeSkip = 15
             gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
             gifData = np.stack([gifData, gifData, gifData])
