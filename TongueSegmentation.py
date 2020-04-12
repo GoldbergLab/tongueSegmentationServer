@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 from array2gif import write_gif
+from tensorflow import Graph, Session
 
 #import matplotlib.pyplot as plt
 
@@ -20,16 +21,18 @@ class SegmentationSpecification:
     # neuralNetworkPaths are a list of file paths leading to .h5 or .hd5 tensorflow trained neural network files
     def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[], neuralNetworkPaths=[]):
         N = len(partNames)
-        # Fill xOffets with zeros
-        xOffsets = xOffsets + [0 for k in range(N - len(xOffsets))]
-        yOffsets = yOffsets + [0 for k in range(N - len(yOffsets))]
-        widths = widths + [None for k in range(N - len(widths))]
-        heights = heights + [None for k in range(N - len(heights))]
+        # Fill incomplete parameters with default values
+        xOffsets = xOffsets + [0    for k in range(N - len(xOffsets))]
+        yOffsets = yOffsets + [0    for k in range(N - len(yOffsets))]
+        widths   = widths   + [None for k in range(N - len(widths))]
+        heights  = heights  + [None for k in range(N - len(heights))]
 
-        self._partNames = partNames
-        self._maskDims = dict(zip(partNames, [list(dims) for dims in zip(widths, heights, xOffsets, yOffsets)]))
-        self._networkPaths = dict(zip(partNames, neuralNetworkPaths))
-        self._networks = dict(zip(partNames, [None for k in partNames]))
+        self._partNames = partNames                                                                                         # Names of parts of image to mask
+        self._maskDims =        dict(zip(partNames, [list(dims) for dims in zip(widths, heights, xOffsets, yOffsets)]))     # Dimensions of masks
+        self._networkPaths =    dict(zip(partNames, neuralNetworkPaths))                                                    # Paths to model files
+        self._networks =        dict(zip(partNames, [None for k in partNames]))                                             # Loaded models
+        self._graphs =          dict(zip(partNames, [None for k in partNames]))                                             # Separate tensorflow graphs for each model
+        self._sessions =        dict(zip(partNames, [None for k in partNames]))                                             # Separate tensorflow sessions for each model
 
     def getPartNames(self):
         return self._partNames
@@ -93,21 +96,32 @@ class SegmentationSpecification:
         if partNames is None:
             partNames = self._networkPaths.keys()
         for partName in partNames:
-            self._networks[partName] = load_model(self._networkPaths[partName])
-            if loadShape:
-                # Load width and height based on neural network input shapes
-                try:
-                    _, h, w, _ = self._networks[partName].input_shape
-                except:
-                    # Loading shape from neural network failed
-                    w = None
-                    h = None
-                if w is not None and (overwriteShape or (self._maskDims[partName][0] is None)):
-                    # We got a width from the network, and either we're overwriting width, or width was not specified.
-                    self._maskDims[partName][0] = w
-                if h is not None and (overwriteShape or (self._maskDims[partName][1] is None)):
-                    # We got a height from the network, and either we're overwriting height, or height  was not specified.
-                    self._maskDims[partName][1] = h
+            self._graphs[partName] = Graph()
+            with self._graphs[partName].as_default():
+                self._sessions[partName] = Session()
+                with self._sessions[partName].as_default():
+                    self._networks[partName] = load_model(self._networkPaths[partName])
+                    if loadShape:
+                        # Load width and height based on neural network input shapes
+                        try:
+                            _, h, w, _ = self._networks[partName].input_shape
+                        except:
+                            # Loading shape from neural network failed
+                            w = None
+                            h = None
+                        if w is not None and (overwriteShape or (self._maskDims[partName][0] is None)):
+                            # We got a width from the network, and either we're overwriting width, or width was not specified.
+                            self._maskDims[partName][0] = w
+                        if h is not None and (overwriteShape or (self._maskDims[partName][1] is None)):
+                            # We got a height from the network, and either we're overwriting height, or height  was not specified.
+                            self._maskDims[partName][1] = h
+
+    def predict(self, partName, imageBuffer):
+        if self._networks[partName] is None:
+            raise ValueError("Networks must be intialized before predicting")
+        with self._graphs[partName].as_default():
+            with self._sessions[partName].as_default():
+                return self._networks[partName].predict(imageBuffer)
 
 # def initializeNeuralNetwork(neuralNetworkPath):
 #     clear_session()
@@ -149,7 +163,6 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 # Get info on how to separate the frame into parts
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
-                print("Slicing part {part}: x={x}, y={y}".format(part=partName, x=xS, y=yS))
                 # Write the frame part into the video buffer array
 #                h, w = frame[yS, xS, 1].shape
                 imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, segSpec.getHeight(partName), segSpec.getWidth(partName), 1)
@@ -169,7 +182,7 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
         # Convert image to uint8
         imageBuffers[partName] = imageBuffers[partName].astype(np.uint8)
         # Create predicted mask and threshold to make it binary
-        maskPredictions[partName] = segSpec.getNetwork(partName).predict(imageBuffers[partName]) > binaryThreshold
+        maskPredictions[partName] = segSpec.predict(partName, imageBuffers[partName]) > binaryThreshold
         # Generate save name for mask
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
@@ -179,12 +192,12 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 gifSaveName = gifSaveTemplate.format(partName=partName)
                 gifSavePath = Path(maskSaveDirectory) / gifSaveName
                 spaceSkip = 3; timeSkip = 15
-                gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
+                gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8') * 255
                 gifData = np.stack([gifData, gifData, gifData])
                 gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
-                write_gif(gifData, gifSavePath)
+                write_gif(gifData, gifSavePath, fps=40)
             except:
                 print("Mask preview creation failed.")
 
         # Save mask to disk
-        savemat(savePath,{'mask_pred':maskPredictions[partName]},do_compression=True)
+        savemat(savePath,{'mask_pred':maskPredictions[partName]}, do_compression=True)
