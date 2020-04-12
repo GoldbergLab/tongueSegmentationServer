@@ -388,6 +388,16 @@ class SegmentationServer:
             botNetworkPath = NETWORKS_FOLDER / postData['botNetworkName'][0]
             binaryThreshold = float(postData['binaryThreshold'][0])
             topOffset = int(postData['topOffset'][0])
+            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
+                topHeight = None
+            else:
+                topHeight = int(postData['topHeight'][0])
+            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
+                botHeight = None
+            else:
+                botHeight = int(postData['botHeight'][0])
+            generatePreview = bool(postData['generatePreview'][0])
+            logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=generatePreview))
             jobName = postData['jobName'][0]
         except KeyError:
             # Missing one of the postData arguments
@@ -402,6 +412,7 @@ class SegmentationServer:
 
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'],
+            heights=[botHeight, topHeight],
             yOffsets=[0, topOffset],
             neuralNetworkPaths=[topNetworkPath, botNetworkPath]
         )
@@ -455,6 +466,7 @@ class SegmentationServer:
             videoList=videoList,                    # List of video paths to process
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
             segmentationSpecification=segSpec,      # SegSpec
+            generatePreview=generatePreview,        # Should we generate gif previews of masks?
             binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
             times=[],                               # List of video processing start times
@@ -465,6 +477,15 @@ class SegmentationServer:
             exitCode=ServerJob.INCOMPLETE           # Job exit code
         )
 
+        if topHeight is None:
+            topHeightText = "Use network size"
+        else:
+            topHeightText = str(topHeight)
+        if botHeight is None:
+            botHeightText = "Use network size"
+        else:
+            botHeightText = str(botHeight)
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
@@ -474,6 +495,9 @@ class SegmentationServer:
             botNetworkName=botNetworkPath.name,
             binaryThreshold=binaryThreshold,
             topOffset=topOffset,
+            topHeight=topHeightText,
+            botHeight=botHeightText,
+            generatePreview=generatePreview,
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
@@ -742,6 +766,16 @@ class SegmentationServer:
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYLim('Top')[0]
+        topHeight = segSpec.getHeight('Top')
+        botHeight = segSpec.getHeight('Bot')
+        if topHeight is None:
+            topHeightText = "Use network size"
+        else:
+            topHeightText = str(topHeight)
+        if botHeight is None:
+            botHeightText = "Use network size"
+        else:
+            botHeightText = str(botHeight)
 
         topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
         botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
@@ -869,6 +903,9 @@ class SegmentationServer:
             topNetworkName=topNetworkName,
             botNetworkName=botNetworkName,
             topOffset=topOffset,
+            topHeight=topHeightText,
+            botHeight=botHeightText,
+            generatePreview=self.jobQueue[jobNum]['generatePreview'],
             topMaskPreviewSrc=topMaskPreviewSrc,
             botMaskPreviewSrc=botMaskPreviewSrc
         )

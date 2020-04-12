@@ -106,6 +106,7 @@ class ServerJob(StateMachineProcess):
                 waitingTimeout = 600,
                 binaryThreshold = 0.3,
                 jobNum = None,
+                generatePreview = True,
                 **kwargs):
         StateMachineProcess.__init__(self, logger=kwargs['logger']) #, **kwargs)
         # Store inputs in instance variables for later access
@@ -118,6 +119,7 @@ class ServerJob(StateMachineProcess):
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
         self.binaryThreshold = binaryThreshold
+        self.generatePreview = generatePreview
         self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
 
@@ -247,7 +249,14 @@ class ServerJob(StateMachineProcess):
                     processingStartTime = time.time_ns()
                     # Segment video
                     currentVideo = self.videoList.pop(0)
-                    segmentVideo(videoPath=currentVideo, segSpec=self.segSpec, maskSaveDirectory=self.maskSaveDirectory, videoIndex=videoIndex, binaryThreshold=self.binaryThreshold)
+                    segmentVideo(
+                        videoPath=currentVideo,
+                        segSpec=self.segSpec,
+                        maskSaveDirectory=self.maskSaveDirectory,
+                        videoIndex=videoIndex,
+                        binaryThreshold=self.binaryThreshold,
+                        generatePreview=self.generatePreview
+                    )
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
 #                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
