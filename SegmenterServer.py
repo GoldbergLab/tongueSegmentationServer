@@ -90,7 +90,7 @@ BASE_USER='glab'
 ADMIN_USER='admin'
 
 # How often monitoring pages auto-reload, in ms
-AUTO_RELOAD_INTERVAL=8000
+AUTO_RELOAD_INTERVAL=5000
 
 def isWriteAuthorized(user, owner):
     # Check if user is authorized to modify/terminate owner's job
