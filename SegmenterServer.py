@@ -1010,7 +1010,7 @@ class SegmentationServer:
             elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
                 if not self.isConfirmed(jobNum):
                     state = 'Unconfirmed'
-                elif self.isEnqueued(jobNum)
+                elif self.isEnqueued(jobNum):
                     state = 'Enqueued'
                 else:
                     state = 'Working'
