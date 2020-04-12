@@ -293,7 +293,7 @@ class SegmentationServer:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            yield [htmlTemplate.format(
+            return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
                 linkURL='/',
@@ -309,35 +309,36 @@ class SegmentationServer:
             if subfolder == "css":
                 start_fn('200 OK', [('Content-Type', 'text/css')])
                 with requestedStaticFilePath.open('r') as f:
-                    for line in f:
-                        yield line.encode('utf-8')
+                    return [f.read().encode('utf-8')]
             elif subfolder == "favicon":
                 start_fn('200 OK', [('Content-Type', "image/x-icon")])
                 with requestedStaticFilePath.open('rb') as f:
-                    yield f.read()
+                    return [f.read()]
             elif subfolder == "images":
                 type = requestedStaticFilePath.suffix.strip('.').lower()
                 if type not in ['png', 'gif', 'bmp', 'jpg', 'jpeg', 'ico', 'tiff']:
                     start_fn('404 Not Found', [('Content-Type', 'text/html')])
-                    yield self.formatError(
+                    return self.formatError(
                         environ,
                         errorTitle='Unknown image type',
                         errorMsg='Unknown image type: {type}'.format(type=type),
                         linkURL='/',
                         linkAction='return to job creation page (or use browser back button)'
                         )
-                if type == 'jpg': type = 'jpeg'
-                if type in ['ico', 'cur']: type = 'x-icon'
-                if type == 'svg': type = 'svg+xml'
-                if type == 'tif': type = 'tiff'
-                start_fn('200 OK', [('Content-Type', "image/{type}".format(type=type))])
-                with requestedStaticFilePath.open('rb') as f:
-                    yield f.read()
+                else:
+                    # Convert some extensions to mime types
+                    if type == 'jpg': type = 'jpeg'
+                    if type in ['ico', 'cur']: type = 'x-icon'
+                    if type == 'svg': type = 'svg+xml'
+                    if type == 'tif': type = 'tiff'
+                    start_fn('200 OK', [('Content-Type', "image/{type}".format(type=type))])
+                    with requestedStaticFilePath.open('rb') as f:
+                        return [f.read()]
         else:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            yield [htmlTemplate.format(
+            return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
                 linkURL='/',
@@ -706,7 +707,7 @@ class SegmentationServer:
 
         start_fn('200 OK', [('Content-Type', "image/gif")])
         with preview.open('rb') as f:
-            yield f.read()
+            return [f.read()]
 
 
     def checkProgressHandler(self, environ, start_fn):
