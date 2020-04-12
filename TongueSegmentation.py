@@ -88,6 +88,7 @@ class SegmentationSpecification:
             self._maskDims[partName] = [w, h, x, y]
 
     def initializeNetworks(self, partNames=None, loadShape=True):
+        # Initialize segspec networks and get width/height info from networks
         clear_session()
         if partNames is None:
             partNames = self._networkPaths.keys()
