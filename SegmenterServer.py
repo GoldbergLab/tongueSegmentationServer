@@ -420,7 +420,7 @@ class SegmentationServer:
             partNames=['Bot', 'Top'],
             heights=[botHeight, topHeight],
             yOffsets=[0, topOffset],
-            neuralNetworkPaths=[topNetworkPath, botNetworkPath]
+            neuralNetworkPaths=[botNetworkPath, topNetworkPath]
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
