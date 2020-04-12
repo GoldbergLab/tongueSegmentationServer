@@ -89,6 +89,9 @@ USERS, USER_LVLS = loadAuth()
 BASE_USER='glab'
 ADMIN_USER='admin'
 
+# How often monitoring pages auto-reload, in ms
+AUTO_RELOAD_INTERVAL=8000
+
 def isWriteAuthorized(user, owner):
     # Check if user is authorized to modify/terminate owner's job
     userLvl = USER_LVLS[user]
@@ -907,7 +910,8 @@ class SegmentationServer:
             botHeight=botHeightText,
             generatePreview=self.jobQueue[jobNum]['generatePreview'],
             topMaskPreviewSrc=topMaskPreviewSrc,
-            botMaskPreviewSrc=botMaskPreviewSrc
+            botMaskPreviewSrc=botMaskPreviewSrc,
+            autoReloadInterval=AUTO_RELOAD_INTERVAL
         )
 
     def rootHandler(self, environ, start_fn):
@@ -1033,7 +1037,8 @@ class SegmentationServer:
             environ,
             'ServerManagement.html',
             tbody=jobEntryTableBody,
-            startTime=serverStartTime
+            startTime=serverStartTime,
+            autoReloadInterval=AUTO_RELOAD_INTERVAL
         )
 
     def restartServerHandler(self, environ, start_fn):

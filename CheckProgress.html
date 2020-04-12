@@ -11,7 +11,7 @@
     <script>
       var reloaderID;
       if (!{processDead}) {{
-        var reloadInterval = 5000;
+        var reloadInterval = {autoReloadInterval};
         var reloaderID = window.setInterval(reloader, reloadInterval);
         function reloader() {{
           if (document.getElementById("reloadCheckbox").checked) {{
