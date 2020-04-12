@@ -540,7 +540,7 @@ class SegmentationServer:
     def isOwnedBy(self, jobNum, owner):
         return (self.jobQueue[jobNum]['owner'] == owner)
     def isEnqueued(self, jobNum):
-        return self.isConfirmed(jobNum) and (not self.isStarted(jobNUm)) and (not self.isCancelled(jobNum)) and (not self.isComplete(jobNum))
+        return self.isConfirmed(jobNum) and (not self.isStarted(jobNum)) and (not self.isCancelled(jobNum)) and (not self.isComplete(jobNum))
 
     def getJobNums(self, confirmed=None, started=None, active=None, completed=None, owner=None, succeeded=None, failed=None, cancelled=None):
         # For each filter argument, "None" means do not filter
