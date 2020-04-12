@@ -730,9 +730,7 @@ class SegmentationServer:
 
         if not preview.exists():
             # Preview mask doesn't exist. Instead, serve a static placeholder gif
-            print("Path info was:", environ['PATH_INFO'])
             environ['PATH_INFO'] = "/static/images/MaskPreviewPlaceholder.gif"
-            print("Path info is:", environ['PATH_INFO'])
             return self.staticHandler(environ, start_fn)
 
         start_fn('200 OK', [('Content-Type', "image/gif")])
