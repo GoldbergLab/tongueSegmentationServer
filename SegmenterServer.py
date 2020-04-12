@@ -841,7 +841,7 @@ class SegmentationServer:
         processDead = "true"
         if exitCode == ServerJob.INCOMPLETE:
             processDead = "false"
-            if self.isStarted(jobNum):
+            if not self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
                 if self.isCancelled(jobNum):
