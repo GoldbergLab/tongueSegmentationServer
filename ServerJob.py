@@ -102,7 +102,7 @@ class ServerJob(StateMachineProcess):
                 verbose = False,
                 videoList = None,
                 maskSaveDirectory = None,
-                SegSpec = None,
+                segSpec = None,
                 waitingTimeout = 600,
                 binaryThreshold = 0.3,
                 jobNum = None,
@@ -115,7 +115,7 @@ class ServerJob(StateMachineProcess):
         self.verbose = verbose
         self.videoList = videoList
         self.maskSaveDirectory = maskSaveDirectory
-        self.segSpec = SegSpec
+        self.segSpec = segSpec
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
         self.binaryThreshold = binaryThreshold
