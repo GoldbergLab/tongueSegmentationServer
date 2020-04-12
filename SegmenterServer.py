@@ -14,7 +14,7 @@ import requests
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
 from ServerJob import ServerJob
-from TongueSegmentation import SegmentationSpecification
+from TongueSegmentation import SegSpec
 import queue
 import numpy as np
 from scipy.io import loadmat
@@ -416,10 +416,11 @@ class SegmentationServer:
                 linkAction='return to job creation page (or use browser back button)'
                 )
 
-        segSpec = SegmentationSpecification(
+        segSpec = SegSpec(
             partNames=['Bot', 'Top'],
             heights=[botHeight, topHeight],
             yOffsets=[0, topOffset],
+            offsetAnchors=[SegSpec.SW, SegSpec.NW],
             neuralNetworkPaths=[botNetworkPath, topNetworkPath]
         )
         # Re-root directories
@@ -471,7 +472,7 @@ class SegmentationServer:
             cancelled=False,                        # Has the user cancelled this job?
             videoList=videoList,                    # List of video paths to process
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
-            segmentationSpecification=segSpec,      # SegSpec
+            SegSpec=segSpec,      # SegSpec
             generatePreview=generatePreview,        # Should we generate gif previews of masks?
             binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
@@ -767,7 +768,7 @@ class SegmentationServer:
         # Get some parameters about job ready for display
         binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
         maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
-        segSpec = self.jobQueue[jobNum]['segmentationSpecification']
+        segSpec = self.jobQueue[jobNum]['SegSpec']
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYLim('Top')[0]

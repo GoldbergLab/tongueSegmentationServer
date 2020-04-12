@@ -11,21 +11,45 @@ import numpy as np
 from pathlib import Path
 from array2gif import write_gif
 from tensorflow import Graph, Session
+import functools
+
+def requireFrameSize(func):
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # Do something before
+        if self.frameW is None or self.frameH is None:
+            raise ValueError("This method requires the segSpec to be initialized to the frame size using the initialize method")
+        value = self.func(*args, **kwargs)
+        # Do something after
+        return value
+    return wrapper
 
 #import matplotlib.pyplot as plt
 
-class SegmentationSpecification:
+class SegSpec:
     # A class to hold all info about how to segment the parts of the image.
+
+    # Offset anchor points - from which corner of image is mask part offset from?
+    NW='nw'
+    NE='ne'
+    SW='sw'
+    SE='se'
+
     # Provide a list of part names, and correspondingly indexed lists of part widths, heights, xOffsets, and yOffsets
     # Width or height entries may be None, which means the part extends the maximum distance to the edge of the frame
     # neuralNetworkPaths are a list of file paths leading to .h5 or .hd5 tensorflow trained neural network files
-    def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[], neuralNetworkPaths=[]):
+    def __init__(self, partNames=[], widths=[], heights=[], xOffsets=[], yOffsets=[], neuralNetworkPaths=[], offsetAnchors=[], frameW=None, frameH=None):
         N = len(partNames)
+
+        self.frameW = frameW
+        self.frameH = frameH
+
         # Fill incomplete parameters with default values
         xOffsets = xOffsets + [0    for k in range(N - len(xOffsets))]
         yOffsets = yOffsets + [0    for k in range(N - len(yOffsets))]
         widths   = widths   + [None for k in range(N - len(widths))]
         heights  = heights  + [None for k in range(N - len(heights))]
+        offsetAnchors = offsetAnchors + [SegSpec.NW for k in range(N - len(offsetAnchors))]
 
         self._partNames = partNames                                                                                         # Names of parts of image to mask
         self._maskDims =        dict(zip(partNames, [list(dims) for dims in zip(widths, heights, xOffsets, yOffsets)]))     # Dimensions of masks
@@ -33,6 +57,35 @@ class SegmentationSpecification:
         self._networks =        dict(zip(partNames, [None for k in partNames]))                                             # Loaded models
         self._graphs =          dict(zip(partNames, [None for k in partNames]))                                             # Separate tensorflow graphs for each model
         self._sessions =        dict(zip(partNames, [None for k in partNames]))                                             # Separate tensorflow sessions for each model
+        xAnchors = []
+        yAnchors = []
+        for k, partName in enumerate(self._partNames):
+            if   offsetAnchors[k] == SegSpec.NW:
+                xAnchor = 1
+                yAnchor = 1
+            elif offsetAnchors[k] == SegSpec.NE:
+                xAnchor = -1
+                yAnchor = 1
+            elif offsetAnchors[k] == SegSpec.SW:
+                xAnchor = 1
+                yAnchor = -1
+            elif offsetAnchors[k] == SegSpec.SE:
+                xAnchor = -1
+                yAnchor = -1
+            else:
+                raise ValueError("Error - invalid offset anchor: {offsetAnchor}".format(offsetAnchor=offsetAnchors[k]))
+            xAnchors.append(xAnchor)
+            yAnchors.append(yAnchor)
+        self._anchors = dict(zip(partNames, zip(xAnchors, yAnchors)))
+
+    def _paramsValid(self):
+        for partName in self._partNames:
+            if None in self._maskDims[partName]:
+                return (False, 'Uninitialized mask dimension')
+            w, h, x, y = self._maskDims[partName]
+            if (x+w > self.frameW) or (y+h > self.frameH):
+                return (False, 'Mask does not fit in frame')
+        return (True, '')
 
     def getPartNames(self):
         return self._partNames
@@ -49,19 +102,16 @@ class SegmentationSpecification:
     def getWidth(self, partName):
         return self._maskDims[partName][0]
 
+    @requireFrameSize
     def getXLim(self, partName):
         w, h, x, y = self._maskDims[partName]
-        if w is None:
-            return (x, None)
-        else:
-            return (x, x+w)
+        xA, _ = self._anchors[partName]
+        return sorted((xA * x % self.frameW, yA * (x + w) % self.frameW))
 
     def getYLim(self, partName):
         w, h, x, y = self._maskDims[partName]
-        if h is None:
-            return (y, None)
-        else:
-            return (y, y+h)
+        _, yA = self._anchors[partName]
+        return sorted((yA * y % self.frameH, yA * (y + h) % self.frameH))
 
     def getXSlice(self, partName):
         return slice(*self.getXLim(partName))
@@ -80,14 +130,14 @@ class SegmentationSpecification:
 
     def initialize(self, vcap):
         # Initialize segspec with video information, so we can give more informed output
-        wFrame = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        hFrame = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.frameW = int(vcap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.frameH = int(vcap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         for partName in self._maskDims:
             [w, h, x, y] = self._maskDims[partName]
             if w is None:
-                w = wFrame - x
+                w = self.frameW - x
             if h is None:
-                h = hFrame - y
+                h = self.frameH - y
             self._maskDims[partName] = [w, h, x, y]
 
     def initializeNetworks(self, partNames=None, loadShape=True, overwriteShape=False):
@@ -115,6 +165,9 @@ class SegmentationSpecification:
                         if h is not None and (overwriteShape or (self._maskDims[partName][1] is None)):
                             # We got a height from the network, and either we're overwriting height, or height  was not specified.
                             self._maskDims[partName][1] = h
+        valid, reason = self._paramsValid()
+        if not valid:
+            raise ValueError(reason)
 
     def predict(self, partName, imageBuffer):
         if self._networks[partName] is None:
@@ -130,7 +183,7 @@ class SegmentationSpecification:
 def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3, generatePreview=True):
     # Save one or more predicted mask files for a given video and segmenting neural network
     #   videoPath: The path to the video file in question
-    #   segSpec: a SegmentationSpecification object, which defines how to split the image up into parts to do separate segmentations
+    #   segSpec: a SegSpec object, which defines how to split the image up into parts to do separate segmentations
     #   maskSaveDirectory: The directory in which to save the completed binary mask predictions
     #   videoIndex: An integer indicating which video this is in the series of videos. This will be used to number the output masks
     if None in [videoPath, segSpec, maskSaveDirectory, videoIndex]:
