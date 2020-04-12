@@ -87,22 +87,33 @@ class SegmentationSpecification:
                 h = hFrame - y
             self._maskDims[partName] = [w, h, x, y]
 
-    def initializeNetworks(self, partNames=None, loadShape=True):
+    def initializeNetworks(self, partNames=None, loadShape=True, overwriteShape=False):
+        # Initialize segspec networks and get width/height info from networks
         clear_session()
         if partNames is None:
             partNames = self._networkPaths.keys()
         for partName in partNames:
             self._networks[partName] = load_model(self._networkPaths[partName])
             if loadShape:
-                _, h, w, _ = self._networks[partName].input_shape
-                self._maskDims[partName][0] = w
-                self._maskDims[partName][1] = h
+                # Load width and height based on neural network input shapes
+                try:
+                    _, h, w, _ = self._networks[partName].input_shape
+                except:
+                    # Loading shape from neural network failed
+                    w = None
+                    h = None
+                if w is not None and (overwriteShape or (self._maskDims[partName][0] is None)):
+                    # We got a width from the network, and either we're overwriting width, or width was not specified.
+                    self._maskDims[partName][0] = w
+                if h is not None and (overwriteShape or (self._maskDims[partName][1] is None)):
+                    # We got a height from the network, and either we're overwriting height, or height  was not specified.
+                    self._maskDims[partName][1] = h
 
 # def initializeNeuralNetwork(neuralNetworkPath):
 #     clear_session()
 #     return load_model(neuralNetworkPath)
 
-def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3):
+def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3, generatePreview=True):
     # Save one or more predicted mask files for a given video and segmenting neural network
     #   videoPath: The path to the video file in question
     #   segSpec: a SegmentationSpecification object, which defines how to split the image up into parts to do separate segmentations
@@ -138,6 +149,7 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 # Get info on how to separate the frame into parts
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
+                print("Slicing part {part}: x={x}, y={y}".format(part=partName, x=xS, y=yS))
                 # Write the frame part into the video buffer array
 #                h, w = frame[yS, xS, 1].shape
                 imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, segSpec.getHeight(partName), segSpec.getWidth(partName), 1)
@@ -162,17 +174,17 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
         maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
         savePath = Path(maskSaveDirectory) / maskSaveName
         # Generate gif of the latest mask for monitoring purposes
-        try:
-            gifSaveName = gifSaveTemplate.format(partName=partName)
-            gifSavePath = Path(maskSaveDirectory) / gifSaveName
-            print(maskPredictions[partName].shape, maskPredictions[partName].dtype)
-            spaceSkip = 3; timeSkip = 15
-            gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
-            gifData = np.stack([gifData, gifData, gifData])
-            gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
-            write_gif(gifData, gifSavePath)
-        except:
-            print("Mask preview creation failed.")
+        if generatePreview:
+            try:
+                gifSaveName = gifSaveTemplate.format(partName=partName)
+                gifSavePath = Path(maskSaveDirectory) / gifSaveName
+                spaceSkip = 3; timeSkip = 15
+                gifData = maskPredictions[partName][::timeSkip, ::spaceSkip, ::spaceSkip, 0].astype('uint8')*255
+                gifData = np.stack([gifData, gifData, gifData])
+                gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
+                write_gif(gifData, gifSavePath)
+            except:
+                print("Mask preview creation failed.")
 
         # Save mask to disk
         savemat(savePath,{'mask_pred':maskPredictions[partName]},do_compression=True)

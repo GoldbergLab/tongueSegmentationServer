@@ -50,11 +50,25 @@
           <div class="three columns">Top mask vertical offset:</div><div class="nine columns"><strong>{topOffset}</strong></div>
         </div>
         <div class="row">
+          <div class="three columns">Top mask height:</div><div class="nine columns"><strong>{topHeight}</strong></div>
+        </div>
+        <div class="row">
+          <div class="three columns">Bottom mask height:</div><div class="nine columns"><strong>{botHeight}</strong></div>
+        </div>
+        <div class="row">
           <div class="three columns">Binary mask threshold:</div><div class="nine columns"><strong>{binaryThreshold}</strong></div>
         </div>
-        <form action="/confirmJob/{jobID}">
-            <input class="twelve columns button button-primary" type="submit" value="Confirm and enqueue job" />
-        </form>
+        <div class="row">
+          <div class="three columns">Generate mask previews:</div><div class="nine columns"><strong>{generatePreview}</strong></div>
+        </div>
+        <div class="row">
+          <form action="/confirmJob/{jobID}">
+              <input class="six columns button button-primary" type="submit" value="Confirm and enqueue job" />
+          </form>
+          <form action="/cancelJob/{jobID}">
+              <input class="six columns button button" type="submit" value="Cancel job" />
+          </form>
+        </div>
       </div>
     </div>
   </body>

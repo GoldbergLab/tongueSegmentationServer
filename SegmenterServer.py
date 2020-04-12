@@ -89,6 +89,9 @@ USERS, USER_LVLS = loadAuth()
 BASE_USER='glab'
 ADMIN_USER='admin'
 
+# How often monitoring pages auto-reload, in ms
+AUTO_RELOAD_INTERVAL=5000
+
 def isWriteAuthorized(user, owner):
     # Check if user is authorized to modify/terminate owner's job
     userLvl = USER_LVLS[user]
@@ -192,6 +195,7 @@ class SegmentationServer:
             ('/cancelJob/*',        self.cancelJobHandler),
             ('/serverManagement',   self.serverManagementHandler),
             ('/restartServer',      self.restartServerHandler),
+            ('/maskPreview/*',      self.getMaskPreviewHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -292,7 +296,7 @@ class SegmentationServer:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            yield [htmlTemplate.format(
+            return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
                 linkURL='/',
@@ -308,17 +312,36 @@ class SegmentationServer:
             if subfolder == "css":
                 start_fn('200 OK', [('Content-Type', 'text/css')])
                 with requestedStaticFilePath.open('r') as f:
-                    for line in f:
-                        yield line.encode('utf-8')
+                    return [f.read().encode('utf-8')]
             elif subfolder == "favicon":
                 start_fn('200 OK', [('Content-Type', "image/x-icon")])
                 with requestedStaticFilePath.open('rb') as f:
-                    yield f.read()
+                    return [f.read()]
+            elif subfolder == "images":
+                type = requestedStaticFilePath.suffix.strip('.').lower()
+                if type not in ['png', 'gif', 'bmp', 'jpg', 'jpeg', 'ico', 'tiff']:
+                    start_fn('404 Not Found', [('Content-Type', 'text/html')])
+                    return self.formatError(
+                        environ,
+                        errorTitle='Unknown image type',
+                        errorMsg='Unknown image type: {type}'.format(type=type),
+                        linkURL='/',
+                        linkAction='return to job creation page (or use browser back button)'
+                        )
+                else:
+                    # Convert some extensions to mime types
+                    if type == 'jpg': type = 'jpeg'
+                    if type in ['ico', 'cur']: type = 'x-icon'
+                    if type == 'svg': type = 'svg+xml'
+                    if type == 'tif': type = 'tiff'
+                    start_fn('200 OK', [('Content-Type', "image/{type}".format(type=type))])
+                    with requestedStaticFilePath.open('rb') as f:
+                        return [f.read()]
         else:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             with open('Error.html', 'r') as f: htmlTemplate = f.read()
-            yield [htmlTemplate.format(
+            return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
                 linkURL='/',
@@ -332,8 +355,8 @@ class SegmentationServer:
             if beforeJobNum is not None and jobNum == beforeJobNum:
                 # This is the specified job num - stop, don't count any more
                 break
-            if self.jobQueue[jobNum]['completionTime'] is None:
-                if self.jobQueue[jobNum]['startTime'] is None:
+            if not self.isComplete(jobNum):
+                if not self.isStarted(jobNum):
                     queuedJobsAhead += 1
                 else:
                     activeJobsAhead += 1
@@ -368,6 +391,19 @@ class SegmentationServer:
             botNetworkPath = NETWORKS_FOLDER / postData['botNetworkName'][0]
             binaryThreshold = float(postData['binaryThreshold'][0])
             topOffset = int(postData['topOffset'][0])
+            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
+                topHeight = None
+            else:
+                topHeight = int(postData['topHeight'][0])
+            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
+                botHeight = None
+            else:
+                botHeight = int(postData['botHeight'][0])
+            if 'generatePreview' in postData:
+                logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=postData['generatePreview'][0]))
+                generatePreview = True
+            else:
+                generatePreview = False
             jobName = postData['jobName'][0]
         except KeyError:
             # Missing one of the postData arguments
@@ -382,6 +418,7 @@ class SegmentationServer:
 
         segSpec = SegmentationSpecification(
             partNames=['Bot', 'Top'],
+            heights=[botHeight, topHeight],
             yOffsets=[0, topOffset],
             neuralNetworkPaths=[topNetworkPath, botNetworkPath]
         )
@@ -435,6 +472,7 @@ class SegmentationServer:
             videoList=videoList,                    # List of video paths to process
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
             segmentationSpecification=segSpec,      # SegSpec
+            generatePreview=generatePreview,        # Should we generate gif previews of masks?
             binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
             times=[],                               # List of video processing start times
@@ -445,6 +483,15 @@ class SegmentationServer:
             exitCode=ServerJob.INCOMPLETE           # Job exit code
         )
 
+        if topHeight is None:
+            topHeightText = "Use network size"
+        else:
+            topHeightText = str(topHeight)
+        if botHeight is None:
+            botHeightText = "Use network size"
+        else:
+            botHeightText = str(botHeight)
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
@@ -454,6 +501,9 @@ class SegmentationServer:
             botNetworkName=botNetworkPath.name,
             binaryThreshold=binaryThreshold,
             topOffset=topOffset,
+            topHeight=topHeightText,
+            botHeight=botHeightText,
+            generatePreview=generatePreview,
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
@@ -489,6 +539,8 @@ class SegmentationServer:
         return (self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED)
     def isOwnedBy(self, jobNum, owner):
         return (self.jobQueue[jobNum]['owner'] == owner)
+    def isEnqueued(self, jobNum):
+        return self.isConfirmed(jobNum) and (not self.isStarted(jobNum)) and (not self.isCancelled(jobNum)) and (not self.isComplete(jobNum))
 
     def getJobNums(self, confirmed=None, started=None, active=None, completed=None, owner=None, succeeded=None, failed=None, cancelled=None):
         # For each filter argument, "None" means do not filter
@@ -520,22 +572,6 @@ class SegmentationServer:
             # logger.log(logging.INFO, "Job {jobNum} accepted".format(jobNum=jobNum))
             jobNums.append(jobNum)
         return jobNums
-
-    # def getUnconfirmedJobNums(self, owner=None):
-    #     # Get a list of job nums of unconfirmed jobs
-    #     return [jobNum for jobNum in self.jobQueue if not self.jobQueue[jobNum]['confirmed'] and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getQueuedJobNums(self, confirmedOnly=True, owner=None):
-    #     # Get a list of job nums for queued jobs, in the queue order
-    #     return [jobNum for jobNum in self.jobQueue if (self.jobQueue[jobNum]['job'] is None) and ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getActiveJobNums(self, owner=None):
-    #     # Get a list of active job nums
-    #     return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getCompletedJobNums(self, owner=None):
-    #     # Get a list of completed job nums
-    #     return [jobNum for jobNum in self.jobQueue if self.jobQueue[jobNum]['job'] is not None and (self.jobQueue[jobNum]['completionTime'] is not None) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
-    # def getAllJobNums(self, confirmedOnly=True, owner=None):
-    #     # Get a list of all job nums (both queued and active) in the queue order with active jobs at the start
-    #     return [jobNum for jobNum in self.jobQueue if ((not confirmedOnly) or (self.jobQueue[jobNum]['confirmed'])) and ((owner is None) or self.jobQueue[jobNum]['owner'] == owner)]
 
     def confirmJobHandler(self, environ, start_fn):
         # Get jobNum from URL
@@ -664,6 +700,45 @@ class SegmentationServer:
         logHTML = "\n".join(logHTMLList)
         return logHTML
 
+    def getMaskPreviewHandler(self, environ, start_fn):
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-2])
+        if jobNum not in self.jobQueue:
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job ID',
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
+                linkURL='/',
+                linkAction='create a new job'
+                )
+
+        maskPart = environ['PATH_INFO'].split('/')[-1].lower()
+        if maskPart == "top":
+            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Top.gif'
+        elif maskPart == "bot":
+            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Bot.gif'
+        else:
+            # Invalid mask part
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid mask part',
+                errorMsg='Invalid mask part: {maskPart}'.format(maskPart=maskPart),
+                linkURL='/',
+                linkAction='create a new job'
+                )
+
+        if not preview.exists():
+            # Preview mask doesn't exist. Instead, serve a static placeholder gif
+            environ['PATH_INFO'] = "/static/images/MaskPreviewPlaceholder.gif"
+            return self.staticHandler(environ, start_fn)
+
+        start_fn('200 OK', [('Content-Type', "image/gif")])
+        with preview.open('rb') as f:
+            return [f.read()]
+
     def checkProgressHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
@@ -680,18 +755,35 @@ class SegmentationServer:
                 linkAction='create a new job'
                 )
         if self.jobQueue[jobNum]['job'] is not None:
+            # Job has started. Check its state
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
             jobStateName = ServerJob.stateList[jobState]
+            # Get all pending updates on its progress
             self.updateJobProgress(jobNum)
         else:
+            # Job has not started
             jobStateName = "ENQUEUED"
 
+        # Get some parameters about job ready for display
         binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
         maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
         segSpec = self.jobQueue[jobNum]['segmentationSpecification']
         topNetworkName = segSpec.getNetworkPath('Top').name
         botNetworkName = segSpec.getNetworkPath('Bot').name
         topOffset = segSpec.getYLim('Top')[0]
+        topHeight = segSpec.getHeight('Top')
+        botHeight = segSpec.getHeight('Bot')
+        if topHeight is None:
+            topHeightText = "Use network size"
+        else:
+            topHeightText = str(topHeight)
+        if botHeight is None:
+            botHeightText = "Use network size"
+        else:
+            botHeightText = str(botHeight)
+
+        topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
+        botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
 
         creationTime = ""
         startTime = "Not started yet"
@@ -749,13 +841,13 @@ class SegmentationServer:
         processDead = "true"
         if exitCode == ServerJob.INCOMPLETE:
             processDead = "false"
-            if self.jobQueue[jobNum]['startTime'] is None:
+            if not self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
-                if self.jobQueue[jobNum]['cancelled']:
+                if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
                     stateDescription = 'This job has been cancelled.'
-                elif self.jobQueue[jobNum]['confirmed']:
+                elif self.isConfirmed(jobNum):
                     exitCodePhrase = 'is enqueued, but not started.'
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
@@ -767,17 +859,17 @@ class SegmentationServer:
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
                                         remaining. Your job will be enqueued after you confirm it.'
             else:
-                if self.jobQueue[jobNum]['cancelled']:
+                if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
                     stateDescription = 'This job has been cancelled, and will stop after the current video is complete. All existing masks will remain in place. Stand by...'
                 else:
                     exitCodePhrase = 'is <strong>in progress</strong>!'
-        elif exitCode == ServerJob.SUCCEEDED:
-            if self.jobQueue[jobNum]['cancelled']:
+        elif self.isSucceeded(jobNum):
+            if self.isCancelled(jobNum):
                 exitCodePhrase = 'has been <strong>cancelled</strong>.'
             else:
                 exitCodePhrase = 'is <strong>complete!</strong>'
-        elif exitCode == ServerJob.FAILED:
+        elif self.isFailed(jobNum):
             exitCodePhrase = 'has exited with errors :(  Please see debug output below.'
         else:
             exitCodePhrase = 'is in an unknown exit code state...'
@@ -787,6 +879,12 @@ class SegmentationServer:
         owner = self.jobQueue[jobNum]['owner']
         if owner == getUsername(environ):
             owner = owner + " (you)"
+
+        generatePreview = self.jobQueue[jobNum]['generatePreview']
+        if not generatePreview:
+            hidePreview = "hidden"
+        else:
+            hidePreview = ""
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
@@ -816,6 +914,13 @@ class SegmentationServer:
             topNetworkName=topNetworkName,
             botNetworkName=botNetworkName,
             topOffset=topOffset,
+            topHeight=topHeightText,
+            botHeight=botHeightText,
+            generatePreview=generatePreview,
+            topMaskPreviewSrc=topMaskPreviewSrc,
+            botMaskPreviewSrc=botMaskPreviewSrc,
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
+            hidePreview=hidePreview
         )
 
     def rootHandler(self, environ, start_fn):
@@ -884,8 +989,8 @@ class SegmentationServer:
             now = time.time_ns()
             if self.jobQueue[jobNum]['creationTime'] is None:
                 self.jobQueue[jobNum]['creationTime'] = now
-            if self.jobQueue[jobNum]['startTime'] is None:
-                self.jobQueue[jobNum]['startTime'] = now
+            # if self.jobQueue[jobNum]['startTime'] is None:
+            #     self.jobQueue[jobNum]['startTime'] = now
             self.jobQueue[jobNum]['completionTime'] = now
             if self.jobQueue[jobNum]['job'] is not None:
                 self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.EXIT, None))
@@ -912,7 +1017,7 @@ class SegmentationServer:
             elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
                 if not self.isConfirmed(jobNum):
                     state = 'Unconfirmed'
-                elif self.jobQueue[jobNum]['startTime'] is None:
+                elif self.isEnqueued(jobNum):
                     state = 'Enqueued'
                 else:
                     state = 'Working'
@@ -941,7 +1046,8 @@ class SegmentationServer:
             environ,
             'ServerManagement.html',
             tbody=jobEntryTableBody,
-            startTime=serverStartTime
+            startTime=serverStartTime,
+            autoReloadInterval=AUTO_RELOAD_INTERVAL
         )
 
     def restartServerHandler(self, environ, start_fn):
