@@ -19,7 +19,7 @@ def requireFrameSize(func):
         # Do something before
         if self.frameW is None or self.frameH is None:
             raise ValueError("This method requires the segSpec to be initialized to the frame size using the initialize method")
-        value = self.func(*args, **kwargs)
+        value = func(self, *args, **kwargs)
         # Do something after
         return value
     return wrapper
@@ -83,8 +83,9 @@ class SegSpec:
             if None in self._maskDims[partName]:
                 return (False, 'Uninitialized mask dimension')
             w, h, x, y = self._maskDims[partName]
-            if (x+w > self.frameW) or (y+h > self.frameH):
-                return (False, 'Mask does not fit in frame')
+            if self.frameW is not None and self.frameH is not None:
+                if (x+w > self.frameW) or (y+h > self.frameH):
+                    return (False, 'Mask does not fit in frame')
         return (True, '')
 
     def getPartNames(self):
@@ -106,7 +107,7 @@ class SegSpec:
     def getXLim(self, partName):
         w, h, x, y = self._maskDims[partName]
         xA, _ = self._anchors[partName]
-        return sorted((xA * x % self.frameW, yA * (x + w) % self.frameW))
+        return sorted((xA * x % self.frameW, xA * (x + w) % self.frameW))
 
     def getYLim(self, partName):
         w, h, x, y = self._maskDims[partName]
@@ -140,6 +141,9 @@ class SegSpec:
             if h is None:
                 h = self.frameH - y
             self._maskDims[partName] = [w, h, x, y]
+        valid, reason = self._paramsValid()
+        if not valid:
+            raise ValueError(reason)
 
     def initializeNetworks(self, partNames=None, loadShape=True, overwriteShape=False):
         # Initialize segspec networks and get width/height info from networks
