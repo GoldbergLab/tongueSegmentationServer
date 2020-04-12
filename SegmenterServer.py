@@ -399,8 +399,11 @@ class SegmentationServer:
                 botHeight = None
             else:
                 botHeight = int(postData['botHeight'][0])
-            generatePreview = bool(postData['generatePreview'][0])
-            logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=generatePreview))
+            if 'generatePreview' in postData:
+                logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=postData['generatePreview'][0]))
+                generatePreview = True
+            else:
+                generatePreview = False
             jobName = postData['jobName'][0]
         except KeyError:
             # Missing one of the postData arguments
