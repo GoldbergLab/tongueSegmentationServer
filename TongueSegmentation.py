@@ -76,6 +76,9 @@ class SegSpec:
                 raise ValueError("Error - invalid offset anchor: {offsetAnchor}".format(offsetAnchor=offsetAnchors[k]))
             xAnchors.append(xAnchor)
             yAnchors.append(yAnchor)
+            w, h, x, y = self._maskDims[partName]
+            print("Got mask dims: (w + x) x (h + y) = ({w} + {x}) x ({h} + {y})".format(w=w, h=h, x=x, y=y))
+
         self._anchors = dict(zip(partNames, zip(xAnchors, yAnchors)))
 
     def _paramsValid(self):
@@ -105,14 +108,22 @@ class SegSpec:
 
     @requireFrameSize
     def getXLim(self, partName):
-        w, h, x, y = self._maskDims[partName]
+        w, _, x, _ = self._maskDims[partName]
         xA, _ = self._anchors[partName]
-        return sorted((xA * x % self.frameW, xA * (x + w) % self.frameW))
+        if xA == 1:
+            xLim = [x, x+w]
+        else:
+            xLim = [self.frameW - (x+w), self.frameW - x]
+        return xLim
 
     def getYLim(self, partName):
-        w, h, x, y = self._maskDims[partName]
+        _, h, _, y = self._maskDims[partName]
         _, yA = self._anchors[partName]
-        return sorted((yA * y % self.frameH, yA * (y + h) % self.frameH))
+        if yA == 1:
+            yLim = [y, y+h]
+        else:
+            yLim = [self.frameH - (y+h), self.frameH - y]
+        return yLim
 
     def getXSlice(self, partName):
         return slice(*self.getXLim(partName))
@@ -219,6 +230,7 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 # Get info on how to separate the frame into parts
                 xS = segSpec.getXSlice(partName)
                 yS = segSpec.getYSlice(partName)
+                print('Slicing: {xS} x {yS}'.format(xS=xS, yS=yS))
                 # Write the frame part into the video buffer array
                 imageBuffers[partName][k, :, :, :] = frame[yS, xS, 1].reshape(1, segSpec.getHeight(partName), segSpec.getWidth(partName), 1)
             k = k+1
