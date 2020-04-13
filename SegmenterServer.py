@@ -58,6 +58,9 @@ STATIC_SUBFOLDER = 'static'
 ROOT = '.'
 PRIVATE_FOLDER = 'private'
 
+DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
+DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
+
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
 ROOT_PATH = Path(ROOT)
 NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
@@ -196,6 +199,7 @@ class SegmentationServer:
             ('/serverManagement',   self.serverManagementHandler),
             ('/restartServer',      self.restartServerHandler),
             ('/maskPreview/*',      self.getMaskPreviewHandler),
+            ('/myJobs',             self.myJobsHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -282,12 +286,16 @@ class SegmentationServer:
                 networks.append(item.name)
         return networks
 
-    def createOptionList(self, optionValues, optionNames=None):
+    def createOptionList(self, optionValues, defaultValue=None, optionNames=None):
         if optionNames is None:
             optionNames = optionValues
         options = []
         for optionValue, optionName in zip(optionValues, optionNames):
-            options.append('<option value="{v}">{n}</option>'.format(v=optionValue, n=optionName))
+            if optionValue == defaultValue:
+                selected = "selected"
+            else:
+                selected = ""
+            options.append('<option value="{v}" {s}>{n}</option>'.format(v=optionValue, n=optionName, s=selected))
         optionText = "\n".join(options)
         return optionText
 
@@ -933,7 +941,7 @@ class SegmentationServer:
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
-        mountOptionsText = self.createOptionList(mountPaths, mountURIs)
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
@@ -946,7 +954,8 @@ class SegmentationServer:
         username = getUsername(environ)
 
         if len(neuralNetworkList) > 0:
-            networkOptionText = self.createOptionList(neuralNetworkList)
+            topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
+            botNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_BOT_NETWORK_NAME)
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return self.formatHTML(
                 environ,
@@ -957,7 +966,8 @@ class SegmentationServer:
                 input=postData,
                 remoteUser=username,
                 path=environ['PATH_INFO'],
-                nopts=networkOptionText,
+                nopts_bot=botNetworkOptionText,
+                nopts_top=topNetworkOptionText,
                 mopts=mountOptionsText
                 )
         else:
@@ -1011,6 +1021,53 @@ class SegmentationServer:
         start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
         return []
 
+    def getHumanReadableJobState(self, jobNum):
+        state = 'Unknown'
+        if self.isCancelled(jobNum):
+            state = 'Cancelled'
+        elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
+            if not self.isConfirmed(jobNum):
+                state = 'Unconfirmed'
+            elif self.isEnqueued(jobNum):
+                state = 'Enqueued'
+            else:
+                state = 'Working'
+        elif self.isSucceeded(jobNum):
+            state = 'Succeeded'
+        elif self.isFailed(jobNum):
+            state = 'Failed'
+        return state
+
+    def myJobsHandler(self, environ, start_fn):
+        user = getUsername(environ)
+
+        with open('MyJobsTableRowTemplate.html', 'r') as f:
+            jobEntryTemplate = f.read()
+
+        jobEntries = []
+        for jobNum in self.getJobNums(owner=user):
+            state = self.getHumanReadableJobState(jobNum)
+
+            numVideos = len(self.jobQueue[jobNum]['videoList'])
+            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+
+            jobEntries.append(jobEntryTemplate.format(
+                percentComplete=percentComplete,
+                jobNum=jobNum,
+                jobDescription=self.jobQueue[jobNum]['jobName'],
+                state=state
+            ))
+        jobEntryTableBody = '\n'.join(jobEntries)
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'MyJobs.html',
+            tbody=jobEntryTableBody,
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
+            user=user
+        )
+
     def serverManagementHandler(self, environ, start_fn):
         if not isAdmin(getUsername(environ)):
             # User is not authorized
@@ -1025,20 +1082,7 @@ class SegmentationServer:
 
         jobEntries = []
         for jobNum in allJobNums:
-            state = 'Unknown'
-            if self.isCancelled(jobNum):
-                state = 'Cancelled'
-            elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
-                if not self.isConfirmed(jobNum):
-                    state = 'Unconfirmed'
-                elif self.isEnqueued(jobNum):
-                    state = 'Enqueued'
-                else:
-                    state = 'Working'
-            elif self.isSucceeded(jobNum):
-                state = 'Succeeded'
-            elif self.isFailed(jobNum):
-                state = 'Failed'
+            state = self.getHumanReadableJobState(jobNum)
 
             numVideos = len(self.jobQueue[jobNum]['videoList'])
             numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
@@ -1053,6 +1097,7 @@ class SegmentationServer:
                 confirmed=self.jobQueue[jobNum]['confirmed'],
                 cancelled=self.jobQueue[jobNum]['cancelled'],
                 state=state,
+                owner=self.jobQueue[jobNum]['owner']
             ))
         jobEntryTableBody = '\n'.join(jobEntries)
         start_fn('200 OK', [('Content-Type', 'text/html')])
