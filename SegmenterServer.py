@@ -411,7 +411,7 @@ class SegmentationServer:
             return self.formatError(
                 environ,
                 errorTitle='Missing parameter',
-                errorMsg='All fields are required. Please retry with all fields filled in.',
+                errorMsg='A required field is missing. Please retry with all required fields filled in.',
                 linkURL='/',
                 linkAction='return to job creation page (or use browser back button)'
                 )
