@@ -222,11 +222,14 @@ class SegmentationServer:
         with open('NavBar.html', 'r') as f:
             navBarHTML = f.read()
             navBarHTML = navBarHTML.format(user=getUsername(environ))
+        with open('HeadLinks.html', 'r') as f:
+            headLinksHTML = f.read()
 
         with open(templateFilename, 'r') as f:
             htmlTemplate = f.read()
             html = htmlTemplate.format(
                 navBarHTML=navBarHTML,
+                headLinksHTML=headLinksHTML,
                 **parameters
             )
         return [html.encode('utf-8')]
