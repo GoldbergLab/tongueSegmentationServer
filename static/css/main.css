@@ -6,6 +6,15 @@ input:invalid{
   background-color: #F05233;
 }
 
+input[type="checkbox"].large-checkbox{
+  width: 20px;
+  height: 20px;
+}
+input[type="radio"].large-radio{
+  width: 17px;
+  height: 17px;
+}
+
 /*
 Thanks to doclov on Github for the striped/animated styling guide:
   https://github.com/docluv/Love2Dev-Code-Samples
