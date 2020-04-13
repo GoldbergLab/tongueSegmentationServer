@@ -983,6 +983,16 @@ class SegmentationServer:
                 linkURL='/',
                 linkAction='recreate job'
             )
+        elif jobNum in self.getJobNums(completed=True):
+            # Job is already finished, can't cancel
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot terminate completed job',
+                errorMsg='Can\'t terminate job {jobID} because it has already finished processing.'.format(jobID=jobNum),
+                linkURL='/',
+                linkAction='create a new job'
+            )
         elif not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
