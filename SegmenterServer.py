@@ -200,6 +200,7 @@ class SegmentationServer:
             ('/restartServer',      self.restartServerHandler),
             ('/maskPreview/*',      self.getMaskPreviewHandler),
             ('/myJobs',             self.myJobsHandler),
+            ('/help',               self.helpHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -1114,6 +1115,16 @@ class SegmentationServer:
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
         raise SystemExit("Server restart requested")
+
+    def helpHandler(self, environ, start_fn):
+        user = getUsername(environ)
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'Help.html',
+            user=user
+        )
 
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
