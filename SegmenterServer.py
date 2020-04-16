@@ -25,6 +25,7 @@ import itertools
 from base64 import b64decode
 import json
 from webob import Request
+import re
 
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
@@ -75,6 +76,28 @@ for reqFolder in REQUIRED_SUBFOLDERS:
 AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
 
 logger = initializeLogger()
+
+def validPassword(password):
+    valid = re.search('[a-zA-Z]', password) is not None and re.search('[0-9]', password) is not None and len(password) >= 6 and len(password) <= 15
+    return valid
+
+def changePassword(user, currentPass, newPass):
+    reason = None
+    passwordChanged = False
+    if USERS[user] == currentPass:
+        # Authentication succeeded
+        if validPassword(newPass):
+            USERS[user] = newPass
+            userData = {U:(USERS[U], USER_LVLS[U]) for U in USERS}
+            with open(AUTH_FILE, 'w') as f:
+                f.write(json.dumps(userData))
+                passwordChanged = True
+        else:
+            reason = "Password must be 6 - 15 characters with at least one number and one letter"
+    else:
+        reason = "Current password incorrect"
+    return passwordChanged, reason
+
 
 def loadAuth():
     try:
@@ -201,6 +224,8 @@ class SegmentationServer:
             ('/maskPreview/*',      self.getMaskPreviewHandler),
             ('/myJobs',             self.myJobsHandler),
             ('/help',               self.helpHandler),
+            ('/changePassword',     self.changePasswordHandler),
+            ('/finalizePassword',   self.finalizePasswordHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -210,6 +235,8 @@ class SegmentationServer:
         self.startTime = dt.datetime.now()
 
         self.cleanupTime = 86400        # Number of seconds to wait before deleting finished/dead jobs
+
+        self.basic_auth_app = None
 
         # Start daemon that periodically makes http request that prompts server to update its job queue
         self.updaterDaemon = UpdaterDaemon(interval=3, port=self.port)
@@ -222,6 +249,14 @@ class SegmentationServer:
                 logger.log(logging.DEBUG, 'Matched url {path} to route {route} with handler {handler}'.format(path=environ['PATH_INFO'], route=path, handler=handler))
                 return handler(environ, start_fn)
         return self.invalidHandler(environ, start_fn)
+
+    def linkBasicAuth(self, basic_auth_app):
+        # Link auth app to allow for dynamic changes in authentication
+        self.basic_auth_app = basic_auth_app
+
+    def reloadPasswords(self):
+        USERS, USER_LVLS = loadAuth()
+        self.basic_auth_app._users = USERS
 
     def formatHTML(self, environ, templateFilename, **parameters):
         with open('NavBar.html', 'r') as f:
@@ -1126,6 +1161,61 @@ class SegmentationServer:
             user=user
         )
 
+    def changePasswordHandler(self, environ, start_fn):
+        user = getUsername(environ)
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'ChangePassword.html',
+            user=user
+        )
+
+    def finalizePasswordHandler(self, environ, start_fn):
+        # Display page showing what job will be, and offering opportunity to go ahead or cancel
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        user = getUsername(environ)
+        try:
+            oldPassword  = postData['oldPassword' ][0]
+            newPassword  = postData['newPassword' ][0]
+            newPassword2 = postData['newPassword2'][0]
+        except KeyError:
+            # Missing one of the postData arguments
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Missing parameter',
+                errorMsg='A required field is missing. Please retry with all required fields filled in.',
+                linkURL='/changePassword',
+                linkAction='return to change password page (or use browser back button)'
+                )
+
+        # Check if all parameters are valid. If not, display error and offer to go back
+        if newPassword == newPassword2:
+            success, reason = changePassword(user, oldPassword, newPassword)
+        else:
+            success = False
+            reason = "New password does not match confirmation. Please retype."
+
+        if not success:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job parameter',
+                errorMsg=reason,
+                linkURL='/changePassword',
+                linkAction='return to change password page (or use browser back button)'
+                )
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'PasswordChanged.html',
+            user=user
+        )
+
     def invalidHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving invalid warning')
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -1157,9 +1247,10 @@ if __name__ == '__main__':
     while True:
         s = SegmentationServer(webRoot=ROOT, port=port)
         application = BasicAuth(s, users=USERS)
+        s.linkBasicAuth(application)
         try:
             logger.log(logging.INFO, 'Starting segmentation server...')
-            serve(application, host='0.0.0.0', port=port)
+            serve(application, host='0.0.0.0', port=port, url_scheme='http')
             logger.log(logging.INFO, '...segmentation server started!')
         except KeyboardInterrupt:
             logger.exception('Keyboard interrupt')
