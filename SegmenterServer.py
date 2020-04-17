@@ -108,6 +108,7 @@ def loadAuth():
         sys.exit()
     users = dict((user, userData[user][0]) for user in userData)
     user_lvls = dict((user, userData[user][1]) for user in userData)
+    logger.log(logging.INFO, "Authentication reloaded.")
     return users, user_lvls
 
 USERS, USER_LVLS = loadAuth()
@@ -164,8 +165,9 @@ def getVideoList(videoDirs, videoFilter='*'):
     videoList = []
     for p in videoDirs:
         for videoPath in p.iterdir():
-            if videoPath.match(videoFilter):
-                videoList.append(videoPath)
+            if videoPath.suffix.lower() == ".avi":
+                if videoPath.match(videoFilter):
+                    videoList.append(videoPath)
     return videoList
 
 def getUsername(environ):
@@ -175,6 +177,9 @@ def getUsername(environ):
         credentials = b64decode(auth[1]).decode('UTF-8')
         username, password = credentials.split(':', 1)
     return username
+
+def addMessage(environ, message):
+    environ["segserver.message"] = message
 
 class UpdaterDaemon(mp.Process):
     def __init__(self,
@@ -226,6 +231,7 @@ class SegmentationServer:
             ('/help',               self.helpHandler),
             ('/changePassword',     self.changePasswordHandler),
             ('/finalizePassword',   self.finalizePasswordHandler),
+            ('/reloadAuth',         self.reloadAuthHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -259,11 +265,18 @@ class SegmentationServer:
         self.basic_auth_app._users = USERS
 
     def formatHTML(self, environ, templateFilename, **parameters):
+        # Check to see if we should be putting up an alert
+        if 'segserver.message' in environ:
+            message = environ['segserver.message']
+        else:
+            message = ''
+
         with open('NavBar.html', 'r') as f:
             navBarHTML = f.read()
             navBarHTML = navBarHTML.format(user=getUsername(environ))
         with open('HeadLinks.html', 'r') as f:
             headLinksHTML = f.read()
+            headLinksHTML = headLinksHTML.format(message=message)
 
         with open(templateFilename, 'r') as f:
             htmlTemplate = f.read()
@@ -1142,7 +1155,7 @@ class SegmentationServer:
             'ServerManagement.html',
             tbody=jobEntryTableBody,
             startTime=serverStartTime,
-            autoReloadInterval=AUTO_RELOAD_INTERVAL
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
         )
 
     def restartServerHandler(self, environ, start_fn):
@@ -1150,6 +1163,15 @@ class SegmentationServer:
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
         raise SystemExit("Server restart requested")
+
+    def reloadAuthHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
+
+        message = "Authentication file successfully reloaded!"
+        addMessage(environ, message)
+        return self.serverManagementHandler(environ, start_fn)
 
     def helpHandler(self, environ, start_fn):
         user = getUsername(environ)
@@ -1213,7 +1235,8 @@ class SegmentationServer:
         return self.formatHTML(
             environ,
             'PasswordChanged.html',
-            user=user
+            user=user,
+            message="Password succesfully changed!"
         )
 
     def invalidHandler(self, environ, start_fn):
