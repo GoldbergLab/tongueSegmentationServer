@@ -226,7 +226,10 @@ class SegmentationServer:
     def formatHTML(self, environ, templateFilename, **parameters):
         with open('NavBar.html', 'r') as f:
             navBarHTML = f.read()
-            navBarHTML = navBarHTML.format(user=getUsername(environ))
+            jobsRemaining = self.countJobsRemaining()
+            videosRemaining = self.countVideosRemaining()
+            user = getUsername(environ)
+            navBarHTML = navBarHTML.format(user=user, jobsRemaining=jobsRemaining, videosRemaining=videosRemaining)
         with open('HeadLinks.html', 'r') as f:
             headLinksHTML = f.read()
 
