@@ -25,6 +25,7 @@ import itertools
 from base64 import b64decode
 import json
 from webob import Request
+import re
 
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
@@ -76,6 +77,28 @@ AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
 
 logger = initializeLogger()
 
+def validPassword(password):
+    valid = re.search('[a-zA-Z]', password) is not None and re.search('[0-9]', password) is not None and len(password) >= 6 and len(password) <= 15
+    return valid
+
+def changePassword(user, currentPass, newPass):
+    reason = None
+    passwordChanged = False
+    if USERS[user] == currentPass:
+        # Authentication succeeded
+        if validPassword(newPass):
+            USERS[user] = newPass
+            userData = {U:(USERS[U], USER_LVLS[U]) for U in USERS}
+            with open(AUTH_FILE, 'w') as f:
+                f.write(json.dumps(userData))
+                passwordChanged = True
+        else:
+            reason = "Password must be 6 - 15 characters with at least one number and one letter"
+    else:
+        reason = "Current password incorrect"
+    return passwordChanged, reason
+
+
 def loadAuth():
     try:
         with open(AUTH_FILE, 'r') as f:
@@ -85,6 +108,7 @@ def loadAuth():
         sys.exit()
     users = dict((user, userData[user][0]) for user in userData)
     user_lvls = dict((user, userData[user][1]) for user in userData)
+    logger.log(logging.INFO, "Authentication reloaded.")
     return users, user_lvls
 
 USERS, USER_LVLS = loadAuth()
@@ -141,8 +165,9 @@ def getVideoList(videoDirs, videoFilter='*'):
     videoList = []
     for p in videoDirs:
         for videoPath in p.iterdir():
-            if videoPath.match(videoFilter):
-                videoList.append(videoPath)
+            if videoPath.suffix.lower() == ".avi":
+                if videoPath.match(videoFilter):
+                    videoList.append(videoPath)
     return videoList
 
 def getUsername(environ):
@@ -152,6 +177,9 @@ def getUsername(environ):
         credentials = b64decode(auth[1]).decode('UTF-8')
         username, password = credentials.split(':', 1)
     return username
+
+def addMessage(environ, message):
+    environ["segserver.message"] = message
 
 class UpdaterDaemon(mp.Process):
     def __init__(self,
@@ -201,6 +229,9 @@ class SegmentationServer:
             ('/maskPreview/*',      self.getMaskPreviewHandler),
             ('/myJobs',             self.myJobsHandler),
             ('/help',               self.helpHandler),
+            ('/changePassword',     self.changePasswordHandler),
+            ('/finalizePassword',   self.finalizePasswordHandler),
+            ('/reloadAuth',         self.reloadAuthHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -210,6 +241,8 @@ class SegmentationServer:
         self.startTime = dt.datetime.now()
 
         self.cleanupTime = 86400        # Number of seconds to wait before deleting finished/dead jobs
+
+        self.basic_auth_app = None
 
         # Start daemon that periodically makes http request that prompts server to update its job queue
         self.updaterDaemon = UpdaterDaemon(interval=3, port=self.port)
@@ -223,7 +256,21 @@ class SegmentationServer:
                 return handler(environ, start_fn)
         return self.invalidHandler(environ, start_fn)
 
+    def linkBasicAuth(self, basic_auth_app):
+        # Link auth app to allow for dynamic changes in authentication
+        self.basic_auth_app = basic_auth_app
+
+    def reloadPasswords(self):
+        USERS, USER_LVLS = loadAuth()
+        self.basic_auth_app._users = USERS
+
     def formatHTML(self, environ, templateFilename, **parameters):
+        # Check to see if we should be putting up an alert
+        if 'segserver.message' in environ:
+            message = environ['segserver.message']
+        else:
+            message = ''
+
         with open('NavBar.html', 'r') as f:
             navBarHTML = f.read()
             jobsRemaining = self.countJobsRemaining()
@@ -232,6 +279,7 @@ class SegmentationServer:
             navBarHTML = navBarHTML.format(user=user, jobsRemaining=jobsRemaining, videosRemaining=videosRemaining)
         with open('HeadLinks.html', 'r') as f:
             headLinksHTML = f.read()
+            headLinksHTML = headLinksHTML.format(message=message)
 
         with open(templateFilename, 'r') as f:
             htmlTemplate = f.read()
@@ -1110,7 +1158,7 @@ class SegmentationServer:
             'ServerManagement.html',
             tbody=jobEntryTableBody,
             startTime=serverStartTime,
-            autoReloadInterval=AUTO_RELOAD_INTERVAL
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
         )
 
     def restartServerHandler(self, environ, start_fn):
@@ -1118,6 +1166,15 @@ class SegmentationServer:
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
         raise SystemExit("Server restart requested")
+
+    def reloadAuthHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
+
+        message = "Authentication file successfully reloaded!"
+        addMessage(environ, message)
+        return self.serverManagementHandler(environ, start_fn)
 
     def helpHandler(self, environ, start_fn):
         user = getUsername(environ)
@@ -1127,6 +1184,62 @@ class SegmentationServer:
             environ,
             'Help.html',
             user=user
+        )
+
+    def changePasswordHandler(self, environ, start_fn):
+        user = getUsername(environ)
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'ChangePassword.html',
+            user=user
+        )
+
+    def finalizePasswordHandler(self, environ, start_fn):
+        # Display page showing what job will be, and offering opportunity to go ahead or cancel
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        user = getUsername(environ)
+        try:
+            oldPassword  = postData['oldPassword' ][0]
+            newPassword  = postData['newPassword' ][0]
+            newPassword2 = postData['newPassword2'][0]
+        except KeyError:
+            # Missing one of the postData arguments
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Missing parameter',
+                errorMsg='A required field is missing. Please retry with all required fields filled in.',
+                linkURL='/changePassword',
+                linkAction='return to change password page (or use browser back button)'
+                )
+
+        # Check if all parameters are valid. If not, display error and offer to go back
+        if newPassword == newPassword2:
+            success, reason = changePassword(user, oldPassword, newPassword)
+        else:
+            success = False
+            reason = "New password does not match confirmation. Please retype."
+
+        if not success:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job parameter',
+                errorMsg=reason,
+                linkURL='/changePassword',
+                linkAction='return to change password page (or use browser back button)'
+                )
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'PasswordChanged.html',
+            user=user,
+            message="Password succesfully changed!"
         )
 
     def invalidHandler(self, environ, start_fn):
@@ -1160,9 +1273,10 @@ if __name__ == '__main__':
     while True:
         s = SegmentationServer(webRoot=ROOT, port=port)
         application = BasicAuth(s, users=USERS)
+        s.linkBasicAuth(application)
         try:
             logger.log(logging.INFO, 'Starting segmentation server...')
-            serve(application, host='0.0.0.0', port=port)
+            serve(application, host='0.0.0.0', port=port, url_scheme='http')
             logger.log(logging.INFO, '...segmentation server started!')
         except KeyboardInterrupt:
             logger.exception('Keyboard interrupt')

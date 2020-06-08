@@ -18,7 +18,6 @@
         var reallyRestart = confirm("Are you sure you want to restart the server? This will wipe out all jobs. Completed masks will remain. Click 'Ok' to restart, 'Cancel' to allow job to continue.")
         return reallyRestart;
       }}
-
     </script>
   </head>
   <body>
@@ -33,6 +32,9 @@
         <div class="row">
           <form action="/restartServer" onsubmit="return confirmRestart()">
               <input class="button button-deadly" type="submit" value="Restart server" />
+          </form>
+          <form action="/reloadAuth" onsubmit="return reloadAuth()">
+              <input class="button" type="submit" value="Reload auth file" />
           </form>
         </div>
         <h4>Job info:</h4>

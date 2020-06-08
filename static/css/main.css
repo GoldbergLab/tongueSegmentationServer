@@ -15,6 +15,12 @@ input[type="radio"].large-radio{
   height: 17px;
 }
 
+.subsection {
+  margin-left: 5px;
+  border-left: 2px solid #aaa;
+  padding-left: 10px;
+}
+
 /*
 Thanks to doclov on Github for the striped/animated styling guide:
   https://github.com/docluv/Love2Dev-Code-Samples
