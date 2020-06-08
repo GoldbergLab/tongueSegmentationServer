@@ -275,8 +275,12 @@ class SegmentationServer:
             navBarHTML = f.read()
             jobsRemaining = self.countJobsRemaining()
             videosRemaining = self.countVideosRemaining()
+            if jobsRemaining > 0 and videosRemaining > 0:
+                serverStatus = "Status: {jobsRemaining} jobs, {videosRemaining} videos".format(jobsRemaining=jobsRemaining, videosRemaining=videosRemaining)
+            else:
+                serverStatus = "Status: idle"
             user = getUsername(environ)
-            navBarHTML = navBarHTML.format(user=user, jobsRemaining=jobsRemaining, videosRemaining=videosRemaining)
+            navBarHTML = navBarHTML.format(user=user, serverStatus=serverStatus)
         with open('HeadLinks.html', 'r') as f:
             headLinksHTML = f.read()
             headLinksHTML = headLinksHTML.format(message=message)

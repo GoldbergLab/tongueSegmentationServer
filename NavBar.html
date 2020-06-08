@@ -18,14 +18,6 @@
   function login() {{
     location.reload();
   }}
-
-  var jobsRemaining = {jobsRemaining};
-  var videosRemaining = {videosRemaining};
-  if ((jobsRemaining > 0) && (videosRemaining) > 0) {{
-    document.getElementById("serverStatus").innerHTML = "Running: " + jobsRemaining + " jobs " + videosRemaining + " videos "
-  }} else {{
-    document.getElementById("serverStatus").innerHTML = "Idle";
-  }}
 </script>
 <div class="navBar" id="mainNavBar">
   <a class="navBarElement" href="/">New job</a>
@@ -35,7 +27,7 @@
   <a class="navBarElement" href="." onclick="logout(); return false;">Switch user</a>
   <a class="navBarElement" href="/changePassword">Change password</a>
   <a class="navBarElement" href="/help">Help</a>
-  <a class="navBarElement" href="" id="serverStatus"></a>
+  <a class="navBarElement" href="" id="serverStatus">{serverStatus}</a>
   <a class="icon navBarElement" href="javascript:void(0);" onClick="openDrawerMenu()">&#9776;</a>
   <!--&#9776; is the code for the 3 line menu button-->
 </div>
