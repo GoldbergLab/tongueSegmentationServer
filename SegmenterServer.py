@@ -472,7 +472,7 @@ class SegmentationServer:
             else:
                 generatePreview = False
             if 'skipExisting' in postData:
-                logger.log(logging.INFO, "skipExisting retrieved from form: {skipExisting}".format(generatePreview=postData['skipExisting'][0]))
+                logger.log(logging.INFO, "skipExisting retrieved from form: {skipExisting}".format(skipExisting=postData['skipExisting'][0]))
                 skipExisting = True
             else:
                 skipExisting = False
