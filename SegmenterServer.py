@@ -471,6 +471,11 @@ class SegmentationServer:
                 generatePreview = True
             else:
                 generatePreview = False
+            if 'skipExisting' in postData:
+                logger.log(logging.INFO, "skipExisting retrieved from form: {skipExisting}".format(generatePreview=postData['skipExisting'][0]))
+                skipExisting = True
+            else:
+                skipExisting = False
             jobName = postData['jobName'][0]
         except KeyError:
             # Missing one of the postData arguments
@@ -541,6 +546,7 @@ class SegmentationServer:
             maskSaveDirectory=maskSaveDirectory,    # Path to save masks
             segSpec=segSpec,                        # segSpec
             generatePreview=generatePreview,        # Should we generate gif previews of masks?
+            skipExisting=skipExisting,              # Should we skip generating masks that already exist?
             binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
             completedVideoList=[],                  # List of processed videos
             times=[],                               # List of video processing start times
@@ -572,6 +578,7 @@ class SegmentationServer:
             topHeight=topHeightText,
             botHeight=botHeightText,
             generatePreview=generatePreview,
+            skipExisting=skipExisting,
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
@@ -954,6 +961,8 @@ class SegmentationServer:
         else:
             hidePreview = ""
 
+        skipExisting = self.jobQueue[jobNum]['skipExisting']
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
         return self.formatHTML(
@@ -985,6 +994,7 @@ class SegmentationServer:
             topHeight=topHeightText,
             botHeight=botHeightText,
             generatePreview=generatePreview,
+            skipExisting=skipExisting,
             topMaskPreviewSrc=topMaskPreviewSrc,
             botMaskPreviewSrc=botMaskPreviewSrc,
             autoReloadInterval=AUTO_RELOAD_INTERVAL,

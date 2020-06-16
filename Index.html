@@ -173,9 +173,18 @@
                 allowing you to see the results live in your browser? It adds a second or two of processing time per video, depending on the video sizes."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Generate mask previews:
+            Generate mask previews?
           </label>
           <input class="two columns large-checkbox" type="checkbox" id="generatePreview" name="generatePreview" checked>
+        </div>
+        <div class="row">
+          <label class="three columns" for="skipExisting"
+              aria-label="If a mask already exists, should we skip it? Or generate it and overwrite?"
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Skip existing masks?
+          </label>
+          <input class="two columns large-checkbox" type="checkbox" id="skipExisting" name="skipExisting" checked>
         </div>
         <div aria-label="Create the segmentation job with the specified parameters.
               You will be asked to confirm the parameters before the job is enqueued."

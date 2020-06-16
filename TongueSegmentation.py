@@ -194,7 +194,7 @@ class SegSpec:
             with self._sessions[partName].as_default():
                 return self._networks[partName].predict(imageBuffer)
 
-def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3, generatePreview=True):
+def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoIndex=None, binaryThreshold=0.3, generatePreview=True, skipExisting=False):
     # Save one or more predicted mask files for a given video and segmenting neural network
     #   videoPath: The path to the video file in question
     #   segSpec: a SegSpec object, which defines how to split the image up into parts to do separate segmentations
@@ -205,6 +205,14 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
 
     if type(videoPath) != type(str()):
         videoPath = str(videoPath)
+
+    if skipExisting:
+        # Check if masks already exist
+        savePaths = [getMaskSavePath(partName, videoIndex, maskSaveDirectory) for partName in segSpec.getPartNames()]
+        pathsExist = [p.exists() for p in savePaths]
+        if all(pathsExist):
+            # All masks have already been created - skip!
+            return
 
     # Open video for reading
     cap = cv2.VideoCapture(videoPath)
@@ -250,8 +258,7 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
         # Create predicted mask and threshold to make it binary
         maskPredictions[partName] = segSpec.predict(partName, imageBuffers[partName]) > binaryThreshold
         # Generate save name for mask
-        maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
-        savePath = Path(maskSaveDirectory) / maskSaveName
+        savePath = getMaskSavePath(partName, videoIndex, maskSaveDirectory)
         # Generate gif of the latest mask for monitoring purposes
         if generatePreview:
             try:
@@ -267,3 +274,8 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
 
         # Save mask to disk
         savemat(savePath,{'mask_pred':maskPredictions[partName]}, do_compression=True)
+
+def getMaskSavePath(partName, videoIndex, maskSaveDirectory):
+    maskSaveName = "{partName}_{index:03d}.mat".format(partName=partName, index=videoIndex)
+    savePath = Path(maskSaveDirectory) / maskSaveName
+    return savePath

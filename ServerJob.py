@@ -95,7 +95,8 @@ class ServerJob(StateMachineProcess):
     PROCESS = 'msg_process'
 
     settableParams = [
-        'verbose'
+        'verbose',
+        'skipExisting'
     ]
 
     def __init__(self,
@@ -107,6 +108,7 @@ class ServerJob(StateMachineProcess):
                 binaryThreshold = 0.3,
                 jobNum = None,
                 generatePreview = True,
+                skipExisting = False,
                 **kwargs):
         StateMachineProcess.__init__(self, logger=kwargs['logger']) #, **kwargs)
         # Store inputs in instance variables for later access
@@ -120,6 +122,7 @@ class ServerJob(StateMachineProcess):
         self.waitingTimeout = waitingTimeout
         self.binaryThreshold = binaryThreshold
         self.generatePreview = generatePreview
+        self.skipExisting = skipExisting
         self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
 
@@ -255,7 +258,8 @@ class ServerJob(StateMachineProcess):
                         maskSaveDirectory=self.maskSaveDirectory,
                         videoIndex=videoIndex,
                         binaryThreshold=self.binaryThreshold,
-                        generatePreview=self.generatePreview
+                        generatePreview=self.generatePreview,
+                        skipExisting=self.skipExisting
                     )
                     videoIndex += 1
                     finishedVideoList.append(currentVideo)
