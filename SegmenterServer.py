@@ -689,7 +689,7 @@ class SegmentationServer:
 
         if expired:
             # Delete expired job
-            logger.log(logging.INTO, 'Removing job {jobNum}'.format(jobNum=jobNum))
+            logger.log(logging.INFO, 'Removing job {jobNum}'.format(jobNum=jobNum))
             del self.jobQueue[jobNum]
 
     def updateJobQueueHandler(self, environ, start_fn):
