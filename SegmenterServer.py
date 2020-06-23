@@ -529,6 +529,17 @@ class SegmentationServer:
         # Generate list of videos
         videoList = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
+        # Error out if no videos are found
+        if len(videoList) == 0:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='No videos found',
+                errorMsg="No videos found with the given video root and filters. Please adjust the parameters, or upload videos, then try again.",
+                linkURL='/',
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
         # Add job parameters to queue
         jobNum = SegmentationServer.newJobNum()
 
