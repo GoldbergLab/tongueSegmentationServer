@@ -168,6 +168,7 @@ class SegSpec:
                 with self._sessions[partName].as_default():
                     self._networks[partName] = load_model(self._networkPaths[partName])
                     if loadShape:
+                        print('Preset mask dims: ', self._maskDims[partName])
                         # Load width and height based on neural network input shapes
                         try:
                             _, h, w, _ = self._networks[partName].input_shape

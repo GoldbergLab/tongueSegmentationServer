@@ -466,6 +466,16 @@ class SegmentationServer:
                 botHeight = None
             else:
                 botHeight = int(postData['botHeight'][0])
+
+            if 'topWidth' not in postData or len(postData['topWidth'][0]) == 0:
+                topWidth = None
+            else:
+                topWidth = int(postData['topWidth'][0])
+            if 'botWidth' not in postData or len(postData['botWidth'][0]) == 0:
+                botWidth = None
+            else:
+                botWidth = int(postData['botWidth'][0])
+
             if 'generatePreview' in postData:
                 logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=postData['generatePreview'][0]))
                 generatePreview = True
@@ -491,6 +501,7 @@ class SegmentationServer:
         segSpec = SegSpec(
             partNames=['Bot', 'Top'],
             heights=[botHeight, topHeight],
+            widths=[botWidth, topWidth],
             yOffsets=[0, topOffset],
             offsetAnchors=[SegSpec.SW, SegSpec.NW],
             neuralNetworkPaths=[botNetworkPath, topNetworkPath]
@@ -572,10 +583,18 @@ class SegmentationServer:
             topHeightText = "Use network size"
         else:
             topHeightText = str(topHeight)
+        if topWidth is None:
+            topWidthText = "Use network size"
+        else:
+            topWidthText = str(topWidth)
         if botHeight is None:
             botHeightText = "Use network size"
         else:
             botHeightText = str(botHeight)
+        if botWidth is None:
+            botWidthText = "Use network size"
+        else:
+            botWidthText = str(botWidth)
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
@@ -587,7 +606,9 @@ class SegmentationServer:
             binaryThreshold=binaryThreshold,
             topOffset=topOffset,
             topHeight=topHeightText,
+            topWidth=topWidthText,
             botHeight=botHeightText,
+            botWidth=botWidthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
             jobID=jobNum,
