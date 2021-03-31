@@ -880,6 +880,8 @@ class SegmentationServer:
         topOffset = segSpec.getYOffset('Top')
         topHeight = segSpec.getHeight('Top')
         botHeight = segSpec.getHeight('Bot')
+        topWidth = segSpec.getWidth('Top')
+        botWidth = segSpec.getWidth('Bot')
         if topHeight is None:
             topHeightText = "Use network size"
         else:
@@ -888,6 +890,15 @@ class SegmentationServer:
             botHeightText = "Use network size"
         else:
             botHeightText = str(botHeight)
+
+        if topWidth is None:
+            topWidthText = "Use network size"
+        else:
+            topWidthText = str(topWidth)
+        if botWidth is None:
+            botWidthText = "Use network size"
+        else:
+            botWidthText = str(botWidth)
 
         topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
         botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
@@ -1025,6 +1036,8 @@ class SegmentationServer:
             topOffset=topOffset,
             topHeight=topHeightText,
             botHeight=botHeightText,
+            topWidth=topWidthText,
+            botWidth=botWidthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
             topMaskPreviewSrc=topMaskPreviewSrc,
