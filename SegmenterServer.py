@@ -52,7 +52,7 @@ def initializeLogger():
     # logger.addHandler(ch)
     return logger
 
-NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
+NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5', '.hdf5']
 NETWORKS_SUBFOLDER = 'networks'
 LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
