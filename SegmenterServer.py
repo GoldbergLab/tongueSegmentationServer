@@ -462,7 +462,7 @@ class SegmentationServer:
                 topHeight = None
             else:
                 topHeight = int(postData['topHeight'][0])
-            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
+            if 'botHeight' not in postData or len(postData['botHeight'][0]) == 0:
                 botHeight = None
             else:
                 botHeight = int(postData['botHeight'][0])
