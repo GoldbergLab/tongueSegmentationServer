@@ -52,7 +52,7 @@ def initializeLogger():
     # logger.addHandler(ch)
     return logger
 
-NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5']
+NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5', '.hdf5']
 NETWORKS_SUBFOLDER = 'networks'
 LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
@@ -462,10 +462,20 @@ class SegmentationServer:
                 topHeight = None
             else:
                 topHeight = int(postData['topHeight'][0])
-            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
+            if 'botHeight' not in postData or len(postData['botHeight'][0]) == 0:
                 botHeight = None
             else:
                 botHeight = int(postData['botHeight'][0])
+
+            if 'topWidth' not in postData or len(postData['topWidth'][0]) == 0:
+                topWidth = None
+            else:
+                topWidth = int(postData['topWidth'][0])
+            if 'botWidth' not in postData or len(postData['botWidth'][0]) == 0:
+                botWidth = None
+            else:
+                botWidth = int(postData['botWidth'][0])
+
             if 'generatePreview' in postData:
                 logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=postData['generatePreview'][0]))
                 generatePreview = True
@@ -491,6 +501,7 @@ class SegmentationServer:
         segSpec = SegSpec(
             partNames=['Bot', 'Top'],
             heights=[botHeight, topHeight],
+            widths=[botWidth, topWidth],
             yOffsets=[0, topOffset],
             offsetAnchors=[SegSpec.SW, SegSpec.NW],
             neuralNetworkPaths=[botNetworkPath, topNetworkPath]
@@ -572,10 +583,18 @@ class SegmentationServer:
             topHeightText = "Use network size"
         else:
             topHeightText = str(topHeight)
+        if topWidth is None:
+            topWidthText = "Use network size"
+        else:
+            topWidthText = str(topWidth)
         if botHeight is None:
             botHeightText = "Use network size"
         else:
             botHeightText = str(botHeight)
+        if botWidth is None:
+            botWidthText = "Use network size"
+        else:
+            botWidthText = str(botWidth)
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
@@ -587,7 +606,9 @@ class SegmentationServer:
             binaryThreshold=binaryThreshold,
             topOffset=topOffset,
             topHeight=topHeightText,
+            topWidth=topWidthText,
             botHeight=botHeightText,
+            botWidth=botWidthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
             jobID=jobNum,
@@ -859,6 +880,8 @@ class SegmentationServer:
         topOffset = segSpec.getYOffset('Top')
         topHeight = segSpec.getHeight('Top')
         botHeight = segSpec.getHeight('Bot')
+        topWidth = segSpec.getWidth('Top')
+        botWidth = segSpec.getWidth('Bot')
         if topHeight is None:
             topHeightText = "Use network size"
         else:
@@ -867,6 +890,15 @@ class SegmentationServer:
             botHeightText = "Use network size"
         else:
             botHeightText = str(botHeight)
+
+        if topWidth is None:
+            topWidthText = "Use network size"
+        else:
+            topWidthText = str(topWidth)
+        if botWidth is None:
+            botWidthText = "Use network size"
+        else:
+            botWidthText = str(botWidth)
 
         topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
         botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
@@ -1004,6 +1036,8 @@ class SegmentationServer:
             topOffset=topOffset,
             topHeight=topHeightText,
             botHeight=botHeightText,
+            topWidth=topWidthText,
+            botWidth=botWidthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
             topMaskPreviewSrc=topMaskPreviewSrc,

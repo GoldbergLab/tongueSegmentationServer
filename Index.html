@@ -137,7 +137,8 @@
         <div class="row">
           <label class="three columns" for="topHeight"
               aria-label="Optional - specify the desired height of the top mask, in pixels.
-                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank."
+                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank.
+                Some neural networks may have a predefined mask shape, some do not."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Top mask height:
@@ -145,14 +146,37 @@
           <input class="two columns" type="number" id="topHeight" name="topHeight" min="0" step="1" value="">
         </div>
         <div class="row">
+          <label class="three columns" for="topWidth"
+              aria-label="Optional - specify the desired width of the top mask, in pixels.
+                If you want to allow the neural network settings to determine the mask width (most likely), leave this blank.
+                Some neural networks may have a predefined mask shape, some do not."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Top mask width:
+          </label>
+          <input class="two columns" type="number" id="topWidth" name="topWidth" min="0" step="1" value="">
+        </div>
+        <div class="row">
           <label class="three columns" for="botHeight"
               aria-label="Optional - specify the desired height of the bottom mask, in pixels.
-                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank."
+                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank.
+                Some neural networks may have a predefined mask shape, some do not."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Bottom mask height:
           </label>
           <input class="two columns" type="number" id="botHeight" name="botHeight" min="0" step="1" value="">
+        </div>
+        <div class="row">
+          <label class="three columns" for="botWidth"
+              aria-label="Optional - specify the desired width of the bottom mask, in pixels.
+                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank.
+                Some neural networks may have a predefined mask shape, some do not."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Bot mask width:
+          </label>
+          <input class="two columns" type="number" id="botWidth" name="botWidth" min="0" step="1" value="">
         </div>
         <div class="row">
           <label class="three columns" for="binaryThreshold"
