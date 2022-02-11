@@ -57,7 +57,6 @@ NETWORKS_SUBFOLDER = 'networks'
 LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
-PRIVATE_FOLDER = 'private'
 PRIVATE_SUBFOLDER = 'private'
 AUTH_NAME = 'Auth.json'
 
@@ -69,7 +68,6 @@ ROOT_PATH = Path(ROOT)
 NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
 LOGS_FOLDER = ROOT_PATH / LOGS_SUBFOLDER
 STATIC_FOLDER = ROOT_PATH / STATIC_SUBFOLDER
-REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER]
 PRIVATE_FOLDER = ROOT_PATH / PRIVATE_SUBFOLDER
 REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER, PRIVATE_FOLDER]
 for reqFolder in REQUIRED_SUBFOLDERS:
@@ -77,7 +75,6 @@ for reqFolder in REQUIRED_SUBFOLDERS:
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
 
-AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
 AUTH_FILE = PRIVATE_FOLDER / AUTH_NAME
 
 logger = initializeLogger()
@@ -119,8 +116,6 @@ def loadAuth():
     user_lvls = dict((user, userData[user][1]) for user in userData)
     logger.log(logging.INFO, "Authentication reloaded.")
     return users, user_lvls
-
-USERS, USER_LVLS = loadAuth()
 
 BASE_USER='glab'
 ADMIN_USER='admin'
