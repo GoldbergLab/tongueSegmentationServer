@@ -13,15 +13,23 @@ import random
 #
 # Written by Teja Bollu, documented and modified by Brian Kardon
 
+def make_data_augmentation_parameters(rotation_range=None, width_shift_range=0.1,
+    height_shift_range=0.3, zoom_range=0.4, horizontal_flip=True,
+    vertical_flip=True):
+    # Create dictionary of data augmentation parameter
+    return {
+        "rotation_range":rotation_range,
+        "width_shift_range":width_shift_range,
+        "height_shift_range":height_shift_range,
+        "zoom_range":zoom_range,
+        "horizontal_flip":horizontal_flip,
+        "vertical_flip":vertical_flip
+    }
+
 def trainNetwork(trained_network_path, training_data_path, augment=True,
     batch_size=10, epochs=512, image_field_name='imageStack',
     mask_field_name='maskStack', data_augmentation_parameters={},
     epoch_progress_callback=None):
-
-    # Data augmentation parameter examples:
-    # rotation_range=None, width_shift_range=0.1,
-    # height_shift_range=0.3, zoom_range=0.4, horizontal_flip=True,
-    # vertical_flip=True
 
     # augment = boolean flag indicating whether to randomly augment training data
     # batch_size = Size of training batches (size of batches that dataset is divided into for each epoch):
@@ -47,9 +55,9 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
 
     # Process image and mask data into the proper format
     img_shape = img.shape;
-    num_samples = img_shape[0];
-    img_size_x = img_shape[1];
-    img_size_y = img_shape[2];
+    num_samples = img_shape[0]
+    img_size_x = img_shape[1]
+    img_size_y = img_shape[2]
     img = img.reshape(num_samples, img_size_x, img_size_y, 1)
     mask = mask.reshape(num_samples, img_size_x, img_size_y, 1)
 
@@ -95,25 +103,16 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
         )
 
 class TrainingProgressCallback(keras.callbacks.Callback):
-    # def on_train_begin(self, logs=None):
-    #     keys = list(logs.keys())
-    #     print("Starting training; got log keys: {}".format(keys))
-    #
-    # def on_train_end(self, logs=None):
-    #     keys = list(logs.keys())
-    #     print("Stop training; got log keys: {}".format(keys))
-    #
-    # def on_epoch_begin(self, epoch, logs=None):
-    #     keys = list(logs.keys())
-    #     print("Start epoch {} of training; got log keys: {}".format(epoch, keys))
     def __init__(self):
         super(TrainingProgressCallback, self).__init__()
+        self.logs = []
 
     def on_epoch_end(self, epoch, logs=None):
+        self.logs.append(logs)
         keys = list(logs.keys())
         print("End epoch {} of training; got log keys: {}".format(epoch, keys))
 
-def validateNetwork(trained_network_path, imgIterator, maskIterator):
+def validateNetwork(trained_network_path, img=None, imgIterator=None, maskIterator=None):
     # Load trained network
     lickbot_net = load_model(trained_network_path)
 
@@ -134,6 +133,10 @@ def validateNetwork(trained_network_path, imgIterator, maskIterator):
 
     numValidation = img_validate.shape[0]
 
+    img_shape = img.shape;
+    num_samples = img_shape[0
+    img_size_x = img_shape[1]
+    img_size_y = img_shape[2]
 
     img_disp =                       img_validate.reshape(numValidation,img_size_x,img_size_y)
     mask_disp =                     mask_validate.reshape(numValidation,img_size_x,img_size_y)
