@@ -58,6 +58,8 @@ LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
 PRIVATE_FOLDER = 'private'
+PRIVATE_SUBFOLDER = 'private'
+AUTH_NAME = 'Auth.json'
 
 DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
 DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
@@ -68,12 +70,15 @@ NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
 LOGS_FOLDER = ROOT_PATH / LOGS_SUBFOLDER
 STATIC_FOLDER = ROOT_PATH / STATIC_SUBFOLDER
 REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER]
+PRIVATE_FOLDER = ROOT_PATH / PRIVATE_SUBFOLDER
+REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER, PRIVATE_FOLDER]
 for reqFolder in REQUIRED_SUBFOLDERS:
     if not reqFolder.exists():
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
 
 AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
+AUTH_FILE = PRIVATE_FOLDER / AUTH_NAME
 
 logger = initializeLogger()
 
@@ -98,9 +103,13 @@ def changePassword(user, currentPass, newPass):
         reason = "Current password incorrect"
     return passwordChanged, reason
 
-
 def loadAuth():
     try:
+        if not AUTH_FILE.is_file():
+            # No auth file found - create default one
+            logger.log(logging.WARNING, "No authentication file found - creating a default auth file at {f}. It is recommended to change the default passwords.".format(f=AUTH_FILE))
+            with open(AUTH_FILE, 'w') as f:
+                f.write(json.dumps(DEFAULT_AUTH))
         with open(AUTH_FILE, 'r') as f:
             userData = json.loads(f.read())
     except:
@@ -115,6 +124,11 @@ USERS, USER_LVLS = loadAuth()
 
 BASE_USER='glab'
 ADMIN_USER='admin'
+DEFAULT_PASSWORD = 'password'
+# DEFAULT_AUTH is used to create a default auth file if none is found
+DEFAULT_AUTH = {BASE_USER:[DEFAULT_PASSWORD, 0], ADMIN_USER:[DEFAULT_PASSWORD, 2]}
+
+USERS, USER_LVLS = loadAuth()
 
 # How often monitoring pages auto-reload, in ms
 AUTO_RELOAD_INTERVAL=5000
