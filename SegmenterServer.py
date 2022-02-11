@@ -13,7 +13,7 @@ import urllib
 import requests
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
-from ServerJob import ServerJob
+from ServerJob import SegmentationJob, TrainJob
 from TongueSegmentation import SegSpec
 import queue
 import numpy as np
@@ -232,6 +232,7 @@ class SegmentationServer:
             ('/changePassword',     self.changePasswordHandler),
             ('/finalizePassword',   self.finalizePasswordHandler),
             ('/reloadAuth',         self.reloadAuthHandler),
+            ('/train',              self.trainHandler),
             ('/',                   self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -576,7 +577,7 @@ class SegmentationServer:
             startTime=None,                         # Time job was started
             completionTime=None,                    # Time job was completed
             log=[],                                 # List of log output from job
-            exitCode=ServerJob.INCOMPLETE           # Job exit code
+            exitCode=SegmentationJob.INCOMPLETE           # Job exit code
         )
 
         if topHeight is None:
@@ -618,7 +619,7 @@ class SegmentationServer:
         )
 
     def startJob(self, jobNum):
-        self.jobQueue[jobNum]['job'] = ServerJob(
+        self.jobQueue[jobNum]['job'] = SegmentationJob(
             verbose = 1,
             logger=logger,
             **self.jobQueue[jobNum]
@@ -626,8 +627,8 @@ class SegmentationServer:
 
         logger.log(logging.INFO, 'Starting job {jobNum}'.format(jobNum=jobNum))
         self.jobQueue[jobNum]['job'].start()
-        self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.START, None))
-        self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
+        self.jobQueue[jobNum]['job'].msgQueue.put((SegmentationJob.START, None))
+        self.jobQueue[jobNum]['job'].msgQueue.put((SegmentationJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
     def isConfirmed(self, jobNum):
@@ -639,11 +640,11 @@ class SegmentationServer:
     def isActive(self, jobNum):
         return (self.isStarted(jobNum)) and (not self.isComplete(jobNum))
     def isComplete(self, jobNum):
-        return (self.jobQueue[jobNum]['exitCode'] != ServerJob.INCOMPLETE) or (self.jobQueue[jobNum]['completionTime'] is not None)
+        return (self.jobQueue[jobNum]['exitCode'] != SegmentationJob.INCOMPLETE) or (self.jobQueue[jobNum]['completionTime'] is not None)
     def isSucceeded(self, jobNum):
-        return (self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCEEDED)
+        return (self.jobQueue[jobNum]['exitCode'] == SegmentationJob.SUCCEEDED)
     def isFailed(self, jobNum):
-        return (self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED)
+        return (self.jobQueue[jobNum]['exitCode'] == SegmentationJob.FAILED)
     def isOwnedBy(self, jobNum, owner):
         return (self.jobQueue[jobNum]['owner'] == owner)
     def isEnqueued(self, jobNum):
@@ -746,25 +747,25 @@ class SegmentationServer:
             jobState = job.publishedStateVar.value
             # Update progress
             self.updateJobProgress(jobNum)
-#            jobStateName = ServerJob.stateList[jobState]
-            if jobState == ServerJob.STOPPED:
+#            jobStateName = SegmentationJob.stateList[jobState]
+            if jobState == SegmentationJob.STOPPED:
                 pass
-            elif jobState == ServerJob.INITIALIZING:
+            elif jobState == SegmentationJob.INITIALIZING:
                 pass
-            elif jobState == ServerJob.WAITING:
+            elif jobState == SegmentationJob.WAITING:
                 pass
-            elif jobState == ServerJob.WORKING:
+            elif jobState == SegmentationJob.WORKING:
                 pass
-            elif jobState == ServerJob.STOPPING:
+            elif jobState == SegmentationJob.STOPPING:
                 pass
-            elif jobState == ServerJob.ERROR:
+            elif jobState == SegmentationJob.ERROR:
                 pass
                 # job.terminate()
                 # self.removeJob(jobNum)
                 # logger.log(logging.INFO, "Removing job {jobNum} in error state".format(jobNum=jobNum))
-            elif jobState == ServerJob.EXITING:
+            elif jobState == SegmentationJob.EXITING:
                 pass
-            elif jobState == ServerJob.DEAD:
+            elif jobState == SegmentationJob.DEAD:
                 self.jobQueue[jobNum]['completionTime'] = time.time_ns()
                 self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
                 logger.log(logging.INFO, "Removing job {jobNum} in dead state".format(jobNum=jobNum))
@@ -864,7 +865,7 @@ class SegmentationServer:
         if self.jobQueue[jobNum]['job'] is not None:
             # Job has started. Check its state
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
-            jobStateName = ServerJob.stateList[jobState]
+            jobStateName = SegmentationJob.stateList[jobState]
             # Get all pending updates on its progress
             self.updateJobProgress(jobNum)
         else:
@@ -957,7 +958,7 @@ class SegmentationServer:
         exitCode = self.jobQueue[jobNum]['exitCode']
         stateDescription = ''
         processDead = "true"
-        if exitCode == ServerJob.INCOMPLETE:
+        if exitCode == SegmentationJob.INCOMPLETE:
             processDead = "false"
             if not self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
@@ -1091,6 +1092,50 @@ class SegmentationServer:
                 linkAction='retry job creation once a neural network has been uploaded'
             )
 
+    def trainHandler(self, environ, start_fn):
+        logger.log(logging.INFO, 'Serving network training file')
+        # neuralNetworkList = self.getNeuralNetworkList()
+        mountList = self.getMountList(includePosixLocal=True)
+        mountURIs = mountList.keys()
+        mountPaths = [mountList[k] for k in mountURIs]
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
+        if 'QUERY_STRING' in environ:
+            queryString = environ['QUERY_STRING']
+        else:
+            queryString = 'None'
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        logger.log(logging.INFO, 'Creating return data')
+
+        username = getUsername(environ)
+
+        if len(neuralNetworkList) > 0:
+            topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
+            botNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_BOT_NETWORK_NAME)
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            return self.formatHTML(
+                environ,
+                'Index.html',
+                query=queryString,
+                mounts=mountList,
+                # environ=environ,
+                input=postData,
+                remoteUser=username,
+                path=environ['PATH_INFO'],
+                nopts_bot=botNetworkOptionText,
+                nopts_top=topNetworkOptionText,
+                mopts=mountOptionsText
+                )
+        else:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Neural network error',
+                errorMsg='No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER),
+                linkURL='/',
+                linkAction='retry job creation once a neural network has been uploaded'
+            )
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
@@ -1128,7 +1173,7 @@ class SegmentationServer:
             #     self.jobQueue[jobNum]['startTime'] = now
             self.jobQueue[jobNum]['completionTime'] = now
             if self.jobQueue[jobNum]['job'] is not None:
-                self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.EXIT, None))
+                self.jobQueue[jobNum]['job'].msgQueue.put((SegmentationJob.EXIT, None))
         start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
         return []
 
@@ -1136,7 +1181,7 @@ class SegmentationServer:
         state = 'Unknown'
         if self.isCancelled(jobNum):
             state = 'Cancelled'
-        elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
+        elif self.jobQueue[jobNum]['exitCode'] == SegmentationJob.INCOMPLETE:
             if not self.isConfirmed(jobNum):
                 state = 'Unconfirmed'
             elif self.isEnqueued(jobNum):
