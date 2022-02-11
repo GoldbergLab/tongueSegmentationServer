@@ -62,6 +62,7 @@ AUTH_NAME = 'Auth.json'
 
 DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
 DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
+RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
 
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
 ROOT_PATH = Path(ROOT)
@@ -1082,7 +1083,7 @@ class SegmentationServer:
                 environ,
                 'Index.html',
                 query=queryString,
-                mounts=mountList,
+                # mounts=mountList,
                 # environ=environ,
                 input=postData,
                 remoteUser=username,
@@ -1103,7 +1104,7 @@ class SegmentationServer:
 
     def trainHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving network training file')
-        # neuralNetworkList = self.getNeuralNetworkList()
+        existingNeuralNetworkList = [RANDOM_TRAINING_NETWORK_NAME] + self.getNeuralNetworkList()
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
@@ -1119,32 +1120,21 @@ class SegmentationServer:
 
         username = getUsername(environ)
 
-        if len(neuralNetworkList) > 0:
-            topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
-            botNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_BOT_NETWORK_NAME)
-            start_fn('200 OK', [('Content-Type', 'text/html')])
-            return self.formatHTML(
-                environ,
-                'Index.html',
-                query=queryString,
-                mounts=mountList,
-                # environ=environ,
-                input=postData,
-                remoteUser=username,
-                path=environ['PATH_INFO'],
-                nopts_bot=botNetworkOptionText,
-                nopts_top=topNetworkOptionText,
-                mopts=mountOptionsText
-                )
-        else:
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return self.formatError(
-                environ,
-                errorTitle='Neural network error',
-                errorMsg='No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER),
-                linkURL='/',
-                linkAction='retry job creation once a neural network has been uploaded'
+        existingNetworkOptionText = self.createOptionList(existingNeuralNetworkList, defaultValue=RANDOM_TRAINING_NETWORK_NAME)
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'Train.html',
+            query=queryString,
+            # mounts=mountList,
+            # environ=environ,
+            input=postData,
+            remoteUser=username,
+            path=environ['PATH_INFO'],
+            nopts=existingNetworkOptionText,
+            mopts=mountOptionsText
             )
+            
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
