@@ -790,7 +790,7 @@ class SegmentationServer:
             **self.jobQueue[jobNum]
             )
 
-        logger.log(logging.INFO,0 'Starting job {jobNum}'.format(jobNum=jobNum))
+        logger.log(logging.INFO, 'Starting job {jobNum}'.format(jobNum=jobNum))
         self.jobQueue[jobNum]['job'].start()
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.START, None))
         self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))

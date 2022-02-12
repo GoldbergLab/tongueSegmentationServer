@@ -1,6 +1,7 @@
-from keras.models import *
+import keras
+from keras.models import load_model #ImageDataGenerator
 import numpy as np
-from model import *
+from static.models.unet_model import unet
 from scipy.io import loadmat
 import json
 import random
@@ -85,18 +86,18 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
     if augment:
         print("Using automatically augmented training data.")
         # Train network using augmented dataset
-    seed = random.randint(0, 1000000000)
-    imgIterator = imgGen.flow(img, seed=seed, shuffle=False, batch_size=batch_size)
-    maskIterator = maskGen.flow(mask, seed=seed, shuffle=False, batch_size=batch_size)
+        seed = random.randint(0, 1000000000)
+        imgIterator = imgGen.flow(img, seed=seed, shuffle=False, batch_size=batch_size)
+        maskIterator = maskGen.flow(mask, seed=seed, shuffle=False, batch_size=batch_size)
 
-    steps_per_epoch = int(num_samples / batch_size)
-    lickbot_net.fit(
-        ((imgBatch, maskBatch) for imgBatch, maskBatch in zip(imgIterator, maskIterator)),
-        steps_per_epoch=steps_per_epoch, # # of batches of generated data per epoch
-        epochs=epochs,
-        verbose=1,
-        callbacks=callback_list
-    )
+        steps_per_epoch = int(num_samples / batch_size)
+        lickbot_net.fit(
+            ((imgBatch, maskBatch) for imgBatch, maskBatch in zip(imgIterator, maskIterator)),
+            steps_per_epoch=steps_per_epoch, # # of batches of generated data per epoch
+            epochs=epochs,
+            verbose=1,
+            callbacks=callback_list
+        )
     else:
         lickbot_net.fit(
             img,
@@ -131,14 +132,14 @@ def validateNetwork(trained_network_path, img=None, imgIterator=None, maskIterat
     mask_pred = lickbot_net.predict(img_validate)
     mask_pred.shape
 
-    %matplotlib inline
+    # %matplotlib inline
     from matplotlib import pyplot as plt
     from matplotlib import gridspec
 
     numValidation = img_validate.shape[0]
 
     img_shape = img.shape;
-    num_samples = img_shape[0
+    num_samples = img_shape[0]
     img_size_x = img_shape[1]
     img_size_y = img_shape[2]
 
