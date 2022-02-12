@@ -15,6 +15,7 @@ from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
 from ServerJob import SegmentationJob, TrainJob
 from TongueSegmentation import SegSpec
+from NetworkTraining import createDataAugmentationParameters
 import queue
 import numpy as np
 from scipy.io import loadmat
@@ -228,22 +229,22 @@ class SegmentationServer:
     def __init__(self, port=80, webRoot='.'):
         self.port = port
         self.routes = [
-            ('/static/*',           self.staticHandler),
-            ('/finalizeJob',        self.finalizeJobHandler),
-            ('/confirmJob/*',       self.confirmJobHandler),
-            ('/checkProgress/*',    self.checkProgressHandler),
-            ('/updateQueue',        self.updateJobQueueHandler),
-            ('/cancelJob/*',        self.cancelJobHandler),
-            ('/serverManagement',   self.serverManagementHandler),
-            ('/restartServer',      self.restartServerHandler),
-            ('/maskPreview/*',      self.getMaskPreviewHandler),
-            ('/myJobs',             self.myJobsHandler),
-            ('/help',               self.helpHandler),
-            ('/changePassword',     self.changePasswordHandler),
-            ('/finalizePassword',   self.finalizePasswordHandler),
-            ('/reloadAuth',         self.reloadAuthHandler),
-            ('/train',              self.trainHandler),
-            ('/',                   self.rootHandler)
+            ('/static/*',                   self.staticHandler),
+            ('/finalizeSegmentationJob',    self.finalizeSegmentationJobHandler),
+            ('/confirmJob/*',               self.confirmJobHandler),
+            ('/checkProgress/*',            self.checkProgressHandler),
+            ('/updateQueue',                self.updateJobQueueHandler),
+            ('/cancelJob/*',                self.cancelJobHandler),
+            ('/serverManagement',           self.serverManagementHandler),
+            ('/restartServer',              self.restartServerHandler),
+            ('/maskPreview/*',              self.getMaskPreviewHandler),
+            ('/myJobs',                     self.myJobsHandler),
+            ('/help',                       self.helpHandler),
+            ('/changePassword',             self.changePasswordHandler),
+            ('/finalizePassword',           self.finalizePasswordHandler),
+            ('/reloadAuth',                 self.reloadAuthHandler),
+            ('/train',                      self.trainHandler),
+            ('/',                           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
         self.maxActiveJobs = 1          # Maximum # of jobs allowed to be running at once
@@ -454,7 +455,7 @@ class SegmentationServer:
         videosAhead = queuedVideosAhead - completedVideosAhead
         return videosAhead
 
-    def finalizeJobHandler(self, environ, start_fn):
+    def finalizeSegmentationJobHandler(self, environ, start_fn):
         # Display page showing what job will be, and offering opportunity to go ahead or cancel
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
@@ -587,7 +588,7 @@ class SegmentationServer:
             startTime=None,                         # Time job was started
             completionTime=None,                    # Time job was completed
             log=[],                                 # List of log output from job
-            exitCode=SegmentationJob.INCOMPLETE           # Job exit code
+            exitCode=ServerJob.INCOMPLETE           # Job exit code
         )
 
         if topHeight is None:
@@ -610,7 +611,167 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'FinalizeJob.html',
+            'FinalizeSegmentationJob.html',
+            videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
+            topNetworkName=topNetworkPath.name,
+            botNetworkName=botNetworkPath.name,
+            binaryThreshold=binaryThreshold,
+            topOffset=topOffset,
+            topHeight=topHeightText,
+            topWidth=topWidthText,
+            botHeight=botHeightText,
+            botWidth=botWidthText,
+            generatePreview=generatePreview,
+            skipExisting=skipExisting,
+            jobID=jobNum,
+            jobName=jobName,
+            jobsAhead=jobsAhead,
+            videosAhead=videosAhead
+        )
+
+    def finalizeTrainJobHandler(self, environ, start_fn):
+        # Display page showing what job will be, and offering opportunity to go ahead or cancel
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        try:
+            rootMountPoint = postData['rootMountPoint'][0]
+            startNetworkName = postData['startNetworkName'][0]
+            if startNetworkName == RANDOM_TRAINING_NETWORK_NAME:
+                startNetworkPath = None
+            else:
+                startNetworkPath = NETWORKS_FOLDER / startNetworkName
+            newNetworkName = postData['newNetworkName'][0]
+            newNetworkPath = NETWORKS_FOLDER / newNetworkName
+            trainingDataPath = postData['trainingDataPath'][0]
+            pathStyle = postData['pathStyle'][0]
+            batchSize = int(postData['batchSize'][0])
+            numEpochs = int(postData['numEpochs'][0])
+            if 'augmentData' in postData:
+                augmentData = True
+            else:
+                augmentData = False
+            rotationRange = float(postData['rotationRange'][0])
+            widthShiftRange = float(postData['widthShiftRange'][0])
+            heightShiftRange = float(postData['heightShiftRange'][0])
+            zoomRange = float(postData['zoomRange'][0])
+            if 'horizontalFlip' in postData:
+                horizontalFlip = True
+            else:
+                horizontalFlip = False
+            if 'verticalFlip' in postData:
+                verticalFlip = True
+            else:
+                verticalFlip = False
+            if 'generateValidationPreview' in postData:
+                generateValidationPreview = True
+            else:
+                generateValidationPreview = False
+
+            jobName = postData['jobName'][0]
+        except KeyError:
+            # Missing one of the postData arguments
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Missing parameter',
+                errorMsg='A required field is missing. Please retry with all required fields filled in.',
+                linkURL='/',
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
+        augmentationParameters = createDataAugmentationParameters(
+            rotation_range=rotationRange,
+            width_shift_range=widthShiftRange,
+            height_shift_range=heightShiftRange,
+            zoom_range=zoomRange,
+            horizontal_flip=horizontalFlip,
+            vertical_flip=verticalFlip
+        )
+
+        # Re-root training data path
+        reRootedTrainingDataPath = reRootDirectory(rootMountPoint, pathStyle, trainingDataPath)
+
+        # Check if all parameters are valid. If not, display error and offer to go back
+        valid = True
+        errorMessages = []
+        if not (trainingDataPath.suffix.lower() == ".mat"):
+            valid = False
+            errorMessages.append('Training data file provided must be a .mat file. Instead, you provided {trainingDataPath}.'.format(trainingDataPath=trainingDataPath))
+        if not reRootedTrainingDataPath.is_file():
+            valid = False
+            errorMessages.append('Training data file not found: {reRootedTrainingDataPath}. Hint: Did you pick the right root?'.format(reRootedTrainingDataPath=reRootedTrainingDataPath))
+        if startNetworkPath is not None and not startNetworkPath.is_file():
+            valid = False
+            errorMessages.append('Starting network file not found: {startNetworkPath}'.format(startNetworkPath=startNetworkPath))
+        # keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
+        # missingKeys = [key for key in keys if key not in postData]
+        # if len(missingKeys) > 0:
+        #     # Not all form parameters got POSTed
+        #     valid = False
+        #     errorMessages.append('Job creation parameters missing: {params}'.format(params=', '.join(missingKeys)))
+
+        if not valid:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job parameter',
+                errorMsg="<br/>".join(errorMessages),
+                linkURL='/',
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
+        # Add job parameters to queue
+        jobNum = SegmentationServer.newJobNum()
+
+        jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
+        videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+
+        self.jobQueue[jobNum] = dict(
+            job=None,                                       # Job process object
+            jobName=jobName,                                # Name/description of job
+            owner=getUsername(environ),                     # Owner of job, has special privileges
+            jobNum=jobNum,                                  # Job ID
+            confirmed=False,                                # Has user confirmed params yet
+            cancelled=False,                                # Has the user cancelled this job?
+            startNetworkPath=startNetworkPath,              # Either path to an existing network to train, or None
+            newNetworkPath=newNetworkPath,                  # Path to save the newly trained network to
+            batchSize=batchSize,                            # Size of a training batch
+            numEpochs=numEpochs,                            # Number of epochs in the training session
+            augmentData=augmentData,                        # Should training dataset be randomly augmented?
+            augmentationParameters=augmentationParameters,  # Dictionary of augmentation parameters
+            trainingDataPath=reRootedTrainingDataPath,      # Path to the .mat file containing the training data
+            generatePreview=generateValidationPreview,      # Should we generate validation results between each epoch?
+            lastEpochNumber=0,                              # Last completed epoch number
+            times=[],                                       # List of epoch completion times
+            creationTime=time.time_ns(),                    # Time job was created
+            startTime=None,                                 # Time job was started
+            completionTime=None,                            # Time job was completed
+            log=[],                                         # List of log output from job
+            exitCode=ServerJob.INCOMPLETE                   # Job exit code
+        )
+
+        if topHeight is None:
+            topHeightText = "Use network size"
+        else:
+            topHeightText = str(topHeight)
+        if topWidth is None:
+            topWidthText = "Use network size"
+        else:
+            topWidthText = str(topWidth)
+        if botHeight is None:
+            botHeightText = "Use network size"
+        else:
+            botHeightText = str(botHeight)
+        if botWidth is None:
+            botWidthText = "Use network size"
+        else:
+            botWidthText = str(botWidth)
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'FinalizeSegmentationJob.html',
             videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
             topNetworkName=topNetworkPath.name,
             botNetworkName=botNetworkPath.name,
@@ -635,10 +796,10 @@ class SegmentationServer:
             **self.jobQueue[jobNum]
             )
 
-        logger.log(logging.INFO, 'Starting job {jobNum}'.format(jobNum=jobNum))
+        logger.log(logging.INFO,0 'Starting job {jobNum}'.format(jobNum=jobNum))
         self.jobQueue[jobNum]['job'].start()
-        self.jobQueue[jobNum]['job'].msgQueue.put((SegmentationJob.START, None))
-        self.jobQueue[jobNum]['job'].msgQueue.put((SegmentationJob.PROCESS, None))
+        self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.START, None))
+        self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.PROCESS, None))
         self.jobQueue[jobNum]['startTime'] = time.time_ns()
 
     def isConfirmed(self, jobNum):
@@ -650,11 +811,11 @@ class SegmentationServer:
     def isActive(self, jobNum):
         return (self.isStarted(jobNum)) and (not self.isComplete(jobNum))
     def isComplete(self, jobNum):
-        return (self.jobQueue[jobNum]['exitCode'] != SegmentationJob.INCOMPLETE) or (self.jobQueue[jobNum]['completionTime'] is not None)
+        return (self.jobQueue[jobNum]['exitCode'] != ServerJob.INCOMPLETE) or (self.jobQueue[jobNum]['completionTime'] is not None)
     def isSucceeded(self, jobNum):
-        return (self.jobQueue[jobNum]['exitCode'] == SegmentationJob.SUCCEEDED)
+        return (self.jobQueue[jobNum]['exitCode'] == ServerJob.SUCCEEDED)
     def isFailed(self, jobNum):
-        return (self.jobQueue[jobNum]['exitCode'] == SegmentationJob.FAILED)
+        return (self.jobQueue[jobNum]['exitCode'] == ServerJob.FAILED)
     def isOwnedBy(self, jobNum, owner):
         return (self.jobQueue[jobNum]['owner'] == owner)
     def isEnqueued(self, jobNum):
@@ -758,24 +919,24 @@ class SegmentationServer:
             # Update progress
             self.updateJobProgress(jobNum)
 #            jobStateName = SegmentationJob.stateList[jobState]
-            if jobState == SegmentationJob.STOPPED:
+            if jobState == ServerJob.STOPPED:
                 pass
-            elif jobState == SegmentationJob.INITIALIZING:
+            elif jobState == ServerJob.INITIALIZING:
                 pass
-            elif jobState == SegmentationJob.WAITING:
+            elif jobState == ServerJob.WAITING:
                 pass
-            elif jobState == SegmentationJob.WORKING:
+            elif jobState == ServerJob.WORKING:
                 pass
-            elif jobState == SegmentationJob.STOPPING:
+            elif jobState == ServerJob.STOPPING:
                 pass
-            elif jobState == SegmentationJob.ERROR:
+            elif jobState == ServerJob.ERROR:
                 pass
                 # job.terminate()
                 # self.removeJob(jobNum)
                 # logger.log(logging.INFO, "Removing job {jobNum} in error state".format(jobNum=jobNum))
-            elif jobState == SegmentationJob.EXITING:
+            elif jobState == ServerJob.EXITING:
                 pass
-            elif jobState == SegmentationJob.DEAD:
+            elif jobState == ServerJob.DEAD:
                 self.jobQueue[jobNum]['completionTime'] = time.time_ns()
                 self.removeJob(jobNum, waitingPeriod=self.cleanupTime)
                 logger.log(logging.INFO, "Removing job {jobNum} in dead state".format(jobNum=jobNum))
@@ -968,7 +1129,7 @@ class SegmentationServer:
         exitCode = self.jobQueue[jobNum]['exitCode']
         stateDescription = ''
         processDead = "true"
-        if exitCode == SegmentationJob.INCOMPLETE:
+        if exitCode == ServerJob.INCOMPLETE:
             processDead = "false"
             if not self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
@@ -1134,7 +1295,7 @@ class SegmentationServer:
             nopts=existingNetworkOptionText,
             mopts=mountOptionsText
             )
-            
+
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
@@ -1172,7 +1333,7 @@ class SegmentationServer:
             #     self.jobQueue[jobNum]['startTime'] = now
             self.jobQueue[jobNum]['completionTime'] = now
             if self.jobQueue[jobNum]['job'] is not None:
-                self.jobQueue[jobNum]['job'].msgQueue.put((SegmentationJob.EXIT, None))
+                self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.EXIT, None))
         start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
         return []
 
@@ -1180,7 +1341,7 @@ class SegmentationServer:
         state = 'Unknown'
         if self.isCancelled(jobNum):
             state = 'Cancelled'
-        elif self.jobQueue[jobNum]['exitCode'] == SegmentationJob.INCOMPLETE:
+        elif self.jobQueue[jobNum]['exitCode'] == ServerJob.INCOMPLETE:
             if not self.isConfirmed(jobNum):
                 state = 'Unconfirmed'
             elif self.isEnqueued(jobNum):
