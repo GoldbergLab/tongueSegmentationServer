@@ -13,7 +13,7 @@ import random
 #
 # Written by Teja Bollu, documented and modified by Brian Kardon
 
-def make_data_augmentation_parameters(rotation_range=None, width_shift_range=0.1,
+def createDataAugmentationParameters(rotation_range=None, width_shift_range=0.1,
     height_shift_range=0.3, zoom_range=0.4, horizontal_flip=True,
     vertical_flip=True):
     # Create dictionary of data augmentation parameter
@@ -69,8 +69,12 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
         imgGen = ImageDataGenerator(**data_augmentation_parameters)
         maskGen = ImageDataGenerator(**data_augmentation_parameters)
 
-    # Load network structure from model.py file
-    lickbot_net = unet(net_scale = 1)
+    if startNetworkName is None:
+        # Randomize new network structure using architecture in model.py file
+        lickbot_net = unet(net_scale = 1)
+    else:
+        # Load previously trained network from a file
+        lickbot_net = load_model(startNetworkName)
 
     # Instruct training algorithm to save best network to disk whenever an improved network is found.
     model_checkpoint = ModelCheckpoint(trained_network_path, monitor='loss',verbose=1, save_best_only=True)
@@ -81,18 +85,18 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
     if augment:
         print("Using automatically augmented training data.")
         # Train network using augmented dataset
-        seed = random.randint(0, 1000000000)
-        imgIterator = imgGen.flow(img, seed=seed, shuffle=False, batch_size=batch_size)
-        maskIterator = maskGen.flow(mask, seed=seed, shuffle=False, batch_size=batch_size)
+    seed = random.randint(0, 1000000000)
+    imgIterator = imgGen.flow(img, seed=seed, shuffle=False, batch_size=batch_size)
+    maskIterator = maskGen.flow(mask, seed=seed, shuffle=False, batch_size=batch_size)
 
-        steps_per_epoch = int(num_samples / batch_size)
-        lickbot_net.fit(
-            ((imgBatch, maskBatch) for imgBatch, maskBatch in zip(imgIterator, maskIterator)),
-            steps_per_epoch=steps_per_epoch, # # of batches of generated data per epoch
-            epochs=epochs,
-            verbose=1,
-            callbacks=callback_list
-        )
+    steps_per_epoch = int(num_samples / batch_size)
+    lickbot_net.fit(
+        ((imgBatch, maskBatch) for imgBatch, maskBatch in zip(imgIterator, maskIterator)),
+        steps_per_epoch=steps_per_epoch, # # of batches of generated data per epoch
+        epochs=epochs,
+        verbose=1,
+        callbacks=callback_list
+    )
     else:
         lickbot_net.fit(
             img,
