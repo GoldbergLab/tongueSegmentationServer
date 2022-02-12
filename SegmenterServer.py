@@ -704,12 +704,6 @@ class SegmentationServer:
         if startNetworkPath is not None and not startNetworkPath.is_file():
             valid = False
             errorMessages.append('Starting network file not found: {startNetworkPath}'.format(startNetworkPath=startNetworkPath))
-        # keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
-        # missingKeys = [key for key in keys if key not in postData]
-        # if len(missingKeys) > 0:
-        #     # Not all form parameters got POSTed
-        #     valid = False
-        #     errorMessages.append('Job creation parameters missing: {params}'.format(params=', '.join(missingKeys)))
 
         if not valid:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -751,10 +745,10 @@ class SegmentationServer:
             exitCode=ServerJob.INCOMPLETE                   # Job exit code
         )
 
-        if topHeight is None:
-            topHeightText = "Use network size"
+        if startNetworkPath is None:
+            startNetworkPathText = "Start with randomized network"
         else:
-            topHeightText = str(topHeight)
+            startNetworkPathText = str(startNetworkName)
         if topWidth is None:
             topWidthText = "Use network size"
         else:
@@ -771,7 +765,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'FinalizeSegmentationJob.html',
+            'FinalizeTrainJob.html',
             videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
             topNetworkName=topNetworkPath.name,
             botNetworkName=botNetworkPath.name,
