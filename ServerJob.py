@@ -16,9 +16,50 @@ def clearQueue(q):
             except queue.Empty:
                 break
 
-class StateMachineProcess(mp.Process):
+class ServerJob(mp.Process):
+    TYPE = 'Job'
+
+    # States:
+    STOPPED = 0
+    INITIALIZING = 1
+    WAITING = 2
+    WORKING = 3
+    STOPPING = 4
+    ERROR = 5
+    EXITING = 6
+    DEAD = 100
+
+    stateList = {
+        -1:'UNKNOWN',
+        STOPPED :'STOPPED',
+        INITIALIZING :'INITIALIZING',
+        WAITING:'WAITING',
+        WORKING :'WORKING',
+        STOPPING :'STOPPING',
+        ERROR :'ERROR',
+        EXITING :'EXITING',
+        DEAD :'DEAD'
+    }
+
+    # Exit codes:
+    INCOMPLETE = -1
+    SUCCEEDED = 0
+    FAILED = 1
+    exitCodeList = {
+        INCOMPLETE: 'Incomplete',
+        SUCCEEDED: 'Success',
+        FAILED: 'Failed'
+    }
+
+    #messages:
+    START = 'msg_start'
+    EXIT = 'msg_exit'
+    SETPARAMS = 'msg_setParams'
+    PROCESS = 'msg_process'
+
     def __init__(self, *args, logger=None, daemon=True, **kwargs):
         mp.Process.__init__(self, *args, daemon=daemon, **kwargs)
+        self.jobType = ServerJob.TYPE
         self.ID = "X"
         self.msgQueue = mp.Queue()
         self.logger = logger
@@ -52,47 +93,10 @@ class StateMachineProcess(mp.Process):
     #         self.logger.log(logging.INFO, msgs)
     #     self.logBuffer = []
 
-class TrainJob(StateMachineProcess):
+class TrainJob(ServerJob):
     # Class that the server can use to spawn a separate process state machine
     #   to train a network
-
-    # States:
-    STOPPED = 0
-    INITIALIZING = 1
-    WAITING = 2
-    WORKING = 3
-    STOPPING = 4
-    ERROR = 5
-    EXITING = 6
-    DEAD = 100
-
-    stateList = {
-        -1:'UNKNOWN',
-        STOPPED :'STOPPED',
-        INITIALIZING :'INITIALIZING',
-        WAITING:'WAITING',
-        WORKING :'WORKING',
-        STOPPING :'STOPPING',
-        ERROR :'ERROR',
-        EXITING :'EXITING',
-        DEAD :'DEAD'
-    }
-
-    # Exit codes:
-    INCOMPLETE = -1
-    SUCCEEDED = 0
-    FAILED = 1
-    exitCodeList = {
-        INCOMPLETE: 'Incomplete',
-        SUCCEEDED: 'Success',
-        FAILED: 'Failed'
-    }
-
-    #messages:
-    START = 'msg_start'
-    EXIT = 'msg_exit'
-    SETPARAMS = 'msg_setParams'
-    PROCESS = 'msg_process'
+    TYPE = 'Train'
 
     settableParams = [
         'verbose',
@@ -110,9 +114,10 @@ class TrainJob(StateMachineProcess):
                 generatePreview = True,
                 skipExisting = False,
                 **kwargs):
-        StateMachineProcess.__init__(self, logger=kwargs['logger']) #, **kwargs)
+        ServerJob.__init__(self, logger=kwargs['logger']) #, **kwargs)
         # Store inputs in instance variables for later access
         self.jobNum = jobNum
+        self.jobType = TrainJob.TYPE
         self.errorMessages = []
         self.verbose = verbose
         self.videoList = videoList
@@ -123,20 +128,8 @@ class TrainJob(StateMachineProcess):
         self.binaryThreshold = binaryThreshold
         self.generatePreview = generatePreview
         self.skipExisting = skipExisting
-        self.exitCode = TrainJob.INCOMPLETE
+        self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
-
-#
-# make_data_augmentation_parameters(rotation_range=None, width_shift_range=0.1,
-#     height_shift_range=0.3, zoom_range=0.4, horizontal_flip=True,
-#     vertical_flip=True):
-#
-# def trainNetwork(trained_network_path, training_data_path, augment=True,
-#     batch_size=10, epochs=512, image_field_name='imageStack',
-#     mask_field_name='maskStack', data_augmentation_parameters={},
-#     epoch_progress_callback=None):
-#
-# class TrainingProgressCallback
 
     def setParams(self, **params):
         for key in params:
@@ -162,9 +155,9 @@ class TrainJob(StateMachineProcess):
     def run(self):
         self.PID.value = os.getpid()
         if self.verbose >= 1: self.log("PID={pid}".format(pid=os.getpid()))
-        state = TrainJob.STOPPED
-        nextState = TrainJob.STOPPED
-        lastState = TrainJob.STOPPED
+        state = ServerJob.STOPPED
+        nextState = ServerJob.STOPPED
+        lastState = ServerJob.STOPPED
         msg = ''; arg = None
 
         while True:
@@ -174,13 +167,13 @@ class TrainJob(StateMachineProcess):
 
             try:
 # ********************************* STOPPED *********************************
-                if state == TrainJob.STOPPED:
+                if state == ServerJob.STOPPED:
                     # DO STUFF
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=True, timeout=self.waitingTimeout)
-                        if msg == TrainJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty:
                         self.exitFlag = True
                         if self.verbose >= 0: self.log('Waiting timeout expired while stopped - exiting')
@@ -188,18 +181,18 @@ class TrainJob(StateMachineProcess):
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        nextState = TrainJob.EXITING
+                        nextState = ServerJob.EXITING
                     elif msg == '':
                         nextState = state
-                    elif msg == TrainJob.START:
-                        nextState = TrainJob.INITIALIZING
-                    elif msg == TrainJob.EXIT:
+                    elif msg == ServerJob.START:
+                        nextState = ServerJob.INITIALIZING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        nextState = TrainJob.EXITING
+                        nextState = ServerJob.EXITING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* INITIALIZING *********************************
-                elif state == TrainJob.INITIALIZING:
+                elif state == ServerJob.INITIALIZING:
                     # DO STUFF
                     if self.verbose >= 1: self.log('Initializing neural networks...')
                     self.segSpec.initializeNetworks()
@@ -216,30 +209,30 @@ class TrainJob(StateMachineProcess):
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == TrainJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        nextState = TrainJob.STOPPING
-                    elif msg in ['', TrainJob.START]:
-                        nextState = TrainJob.WAITING
-                    elif msg == TrainJob.PROCESS:
+                        nextState = ServerJob.STOPPING
+                    elif msg in ['', ServerJob.START]:
+                        nextState = ServerJob.WAITING
+                    elif msg == ServerJob.PROCESS:
                         # Skip straight to working
-                        nextState = TrainJob.WORKING
-                    elif msg == TrainJob.EXIT:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        nextState = TrainJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* WAITING *********************************
-                elif state == TrainJob.WAITING:
+                elif state == ServerJob.WAITING:
                     # DO STUFF
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=True, timeout=self.waitingTimeout)
-                        if msg == TrainJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty:
                         self.exitFlag = True
                         if self.verbose >= 0: self.log('Waiting timeout expired - exiting')
@@ -247,18 +240,18 @@ class TrainJob(StateMachineProcess):
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        nextState = TrainJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     elif msg == '':
                         nextState = state
-                    elif msg == TrainJob.PROCESS:
-                        nextState = TrainJob.WORKING
-                    elif msg == TrainJob.EXIT:
+                    elif msg == ServerJob.PROCESS:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        nextState = TrainJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* WORKING *********************************
-                elif state == TrainJob.WORKING:
+                elif state == ServerJob.WORKING:
                     # DO STUFF
                     # Record processing time
                     processingStartTime = time.time_ns()
@@ -286,72 +279,72 @@ class TrainJob(StateMachineProcess):
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == TrainJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        self.exitCode = TrainJob.SUCCEEDED
-                        nextState = TrainJob.STOPPING
-                    elif msg in ['', TrainJob.START]:
-                        nextState = TrainJob.WORKING
-                    elif msg == TrainJob.EXIT:
-                        self.exitCode = TrainJob.SUCCEEDED
+                        self.exitCode = ServerJob.SUCCEEDED
+                        nextState = ServerJob.STOPPING
+                    elif msg in ['', ServerJob.START]:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.EXIT:
+                        self.exitCode = ServerJob.SUCCEEDED
                         self.exitFlag = True
-                        nextState = TrainJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* STOPPING *********************************
-                elif state == TrainJob.STOPPING:
+                elif state == ServerJob.STOPPING:
                     # DO STUFF
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == TrainJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
-                    if self.exitFlag or msg in ['', TrainJob.EXIT]:
-                        nextState = TrainJob.EXITING
+                    if self.exitFlag or msg in ['', ServerJob.EXIT]:
+                        nextState = ServerJob.EXITING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* ERROR *********************************
-                elif state == TrainJob.ERROR:
+                elif state == ServerJob.ERROR:
                     # DO STUFF
                     if self.verbose >= 0:
                         self.log("ERROR STATE. Error messages:\n\n")
                         self.log("\n\n".join(self.errorMessages))
                     self.errorMessages = []
-                    self.exitCode = TrainJob.FAILED
+                    self.exitCode = ServerJob.FAILED
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == TrainJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
-                    if lastState == TrainJob.ERROR:
+                    if lastState == ServerJob.ERROR:
                         # Error ==> Error, let's just exit
-                        nextState = TrainJob.EXITING
+                        nextState = ServerJob.EXITING
                     elif msg == '':
-                        if lastState in [TrainJob.STOPPING, TrainJob.STOPPED]:
+                        if lastState in [ServerJob.STOPPING, ServerJob.STOPPED]:
                             # We got an error in the stopped or stopping state? Better just exit.
-                            nextState = TrainJob.EXITING
+                            nextState = ServerJob.EXITING
                         else:
                             self.exitFlag = True
-                            nextState = TrainJob.STOPPING
-                    elif msg == TrainJob.EXIT:
+                            nextState = ServerJob.STOPPING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        if lastState == TrainJob.STOPPING:
-                            nextState = TrainJob.EXITING
+                        if lastState == ServerJob.STOPPING:
+                            nextState = ServerJob.EXITING
                         else:
-                            nextState = TrainJob.STOPPING
+                            nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* EXIT *********************************
-                elif state == TrainJob.EXITING:
+                elif state == ServerJob.EXITING:
                     if self.verbose >= 1: self.log('Exiting!')
                     break
                 else:
@@ -360,11 +353,11 @@ class TrainJob(StateMachineProcess):
                 # Handle user using keyboard interrupt
                 if self.verbose >= 1: self.log("Keyboard interrupt received - exiting")
                 self.exitFlag = True
-                nextState = TrainJob.STOPPING
+                nextState = ServerJob.STOPPING
             except:
                 # HANDLE UNKNOWN ERROR
                 self.errorMessages.append("Error in "+self.stateList[state]+" state\n\n"+traceback.format_exc())
-                nextState = TrainJob.ERROR
+                nextState = ServerJob.ERROR
 
             if (self.verbose >= 1 and (len(msg) > 0 or self.exitFlag)) or len(self.logBuffer) > 0 or self.verbose >= 3:
                 self.log("msg={msg}, exitFlag={exitFlag}".format(msg=msg, exitFlag=self.exitFlag))
@@ -384,48 +377,11 @@ class TrainJob(StateMachineProcess):
 #        self.flushLogBuffer()
         self.updatePublishedState(self.DEAD)
 
-
-class SegmentationJob(StateMachineProcess):
+class SegmentationJob(ServerJob):
     # Class that the server can use to spawn a separate process state machine
     #   to segment a set of videos
 
-    # States:
-    STOPPED = 0
-    INITIALIZING = 1
-    WAITING = 2
-    WORKING = 3
-    STOPPING = 4
-    ERROR = 5
-    EXITING = 6
-    DEAD = 100
-
-    stateList = {
-        -1:'UNKNOWN',
-        STOPPED :'STOPPED',
-        INITIALIZING :'INITIALIZING',
-        WAITING:'WAITING',
-        WORKING :'WORKING',
-        STOPPING :'STOPPING',
-        ERROR :'ERROR',
-        EXITING :'EXITING',
-        DEAD :'DEAD'
-    }
-
-    # Exit codes:
-    INCOMPLETE = -1
-    SUCCEEDED = 0
-    FAILED = 1
-    exitCodeList = {
-        INCOMPLETE: 'Incomplete',
-        SUCCEEDED: 'Success',
-        FAILED: 'Failed'
-    }
-
-    #messages:
-    START = 'msg_start'
-    EXIT = 'msg_exit'
-    SETPARAMS = 'msg_setParams'
-    PROCESS = 'msg_process'
+    TYPE = 'Segment'
 
     settableParams = [
         'verbose',
@@ -443,9 +399,10 @@ class SegmentationJob(StateMachineProcess):
                 generatePreview = True,
                 skipExisting = False,
                 **kwargs):
-        StateMachineProcess.__init__(self, logger=kwargs['logger']) #, **kwargs)
+        ServerJob.__init__(self, logger=kwargs['logger']) #, **kwargs)
         # Store inputs in instance variables for later access
         self.jobNum = jobNum
+        self.jobType = SegmentationJob.TYPE
         self.errorMessages = []
         self.verbose = verbose
         self.videoList = videoList
@@ -456,7 +413,7 @@ class SegmentationJob(StateMachineProcess):
         self.binaryThreshold = binaryThreshold
         self.generatePreview = generatePreview
         self.skipExisting = skipExisting
-        self.exitCode = SegmentationJob.INCOMPLETE
+        self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
 
     def setParams(self, **params):
@@ -483,9 +440,9 @@ class SegmentationJob(StateMachineProcess):
     def run(self):
         self.PID.value = os.getpid()
         if self.verbose >= 1: self.log("PID={pid}".format(pid=os.getpid()))
-        state = SegmentationJob.STOPPED
-        nextState = SegmentationJob.STOPPED
-        lastState = SegmentationJob.STOPPED
+        state = ServerJob.STOPPED
+        nextState = ServerJob.STOPPED
+        lastState = ServerJob.STOPPED
         msg = ''; arg = None
 
         while True:
@@ -495,13 +452,13 @@ class SegmentationJob(StateMachineProcess):
 
             try:
 # ********************************* STOPPED *********************************
-                if state == SegmentationJob.STOPPED:
+                if state == ServerJob.STOPPED:
                     # DO STUFF
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=True, timeout=self.waitingTimeout)
-                        if msg == SegmentationJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty:
                         self.exitFlag = True
                         if self.verbose >= 0: self.log('Waiting timeout expired while stopped - exiting')
@@ -509,18 +466,18 @@ class SegmentationJob(StateMachineProcess):
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        nextState = SegmentationJob.EXITING
+                        nextState = ServerJob.EXITING
                     elif msg == '':
                         nextState = state
-                    elif msg == SegmentationJob.START:
-                        nextState = SegmentationJob.INITIALIZING
-                    elif msg == SegmentationJob.EXIT:
+                    elif msg == ServerJob.START:
+                        nextState = ServerJob.INITIALIZING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        nextState = SegmentationJob.EXITING
+                        nextState = ServerJob.EXITING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* INITIALIZING *********************************
-                elif state == SegmentationJob.INITIALIZING:
+                elif state == ServerJob.INITIALIZING:
                     # DO STUFF
                     if self.verbose >= 1: self.log('Initializing neural networks...')
                     self.segSpec.initializeNetworks()
@@ -537,30 +494,30 @@ class SegmentationJob(StateMachineProcess):
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == SegmentationJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        nextState = SegmentationJob.STOPPING
-                    elif msg in ['', SegmentationJob.START]:
-                        nextState = SegmentationJob.WAITING
-                    elif msg == SegmentationJob.PROCESS:
+                        nextState = ServerJob.STOPPING
+                    elif msg in ['', ServerJob.START]:
+                        nextState = ServerJob.WAITING
+                    elif msg == ServerJob.PROCESS:
                         # Skip straight to working
-                        nextState = SegmentationJob.WORKING
-                    elif msg == SegmentationJob.EXIT:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        nextState = SegmentationJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* WAITING *********************************
-                elif state == SegmentationJob.WAITING:
+                elif state == ServerJob.WAITING:
                     # DO STUFF
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=True, timeout=self.waitingTimeout)
-                        if msg == SegmentationJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty:
                         self.exitFlag = True
                         if self.verbose >= 0: self.log('Waiting timeout expired - exiting')
@@ -568,18 +525,18 @@ class SegmentationJob(StateMachineProcess):
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        nextState = SegmentationJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     elif msg == '':
                         nextState = state
-                    elif msg == SegmentationJob.PROCESS:
-                        nextState = SegmentationJob.WORKING
-                    elif msg == SegmentationJob.EXIT:
+                    elif msg == ServerJob.PROCESS:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        nextState = SegmentationJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* WORKING *********************************
-                elif state == SegmentationJob.WORKING:
+                elif state == ServerJob.WORKING:
                     # DO STUFF
                     # Record processing time
                     processingStartTime = time.time_ns()
@@ -607,72 +564,72 @@ class SegmentationJob(StateMachineProcess):
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == SegmentationJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
                     if self.exitFlag:
-                        self.exitCode = SegmentationJob.SUCCEEDED
-                        nextState = SegmentationJob.STOPPING
-                    elif msg in ['', SegmentationJob.START]:
-                        nextState = SegmentationJob.WORKING
-                    elif msg == SegmentationJob.EXIT:
-                        self.exitCode = SegmentationJob.SUCCEEDED
+                        self.exitCode = ServerJob.SUCCEEDED
+                        nextState = ServerJob.STOPPING
+                    elif msg in ['', ServerJob.START]:
+                        nextState = ServerJob.WORKING
+                    elif msg == ServerJob.EXIT:
+                        self.exitCode = ServerJob.SUCCEEDED
                         self.exitFlag = True
-                        nextState = SegmentationJob.STOPPING
+                        nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* STOPPING *********************************
-                elif state == SegmentationJob.STOPPING:
+                elif state == ServerJob.STOPPING:
                     # DO STUFF
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == SegmentationJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
-                    if self.exitFlag or msg in ['', SegmentationJob.EXIT]:
-                        nextState = SegmentationJob.EXITING
+                    if self.exitFlag or msg in ['', ServerJob.EXIT]:
+                        nextState = ServerJob.EXITING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* ERROR *********************************
-                elif state == SegmentationJob.ERROR:
+                elif state == ServerJob.ERROR:
                     # DO STUFF
                     if self.verbose >= 0:
                         self.log("ERROR STATE. Error messages:\n\n")
                         self.log("\n\n".join(self.errorMessages))
                     self.errorMessages = []
-                    self.exitCode = SegmentationJob.FAILED
+                    self.exitCode = ServerJob.FAILED
 
                     # CHECK FOR MESSAGES
                     try:
                         msg, arg = self.msgQueue.get(block=False)
-                        if msg == SegmentationJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
+                        if msg == ServerJob.SETPARAMS: self.setParams(**arg); msg = ''; arg=None
                     except queue.Empty: msg = ''; arg = None
 
                     # CHOOSE NEXT STATE
-                    if lastState == SegmentationJob.ERROR:
+                    if lastState == ServerJob.ERROR:
                         # Error ==> Error, let's just exit
-                        nextState = SegmentationJob.EXITING
+                        nextState = ServerJob.EXITING
                     elif msg == '':
-                        if lastState in [SegmentationJob.STOPPING, SegmentationJob.STOPPED]:
+                        if lastState in [ServerJob.STOPPING, ServerJob.STOPPED]:
                             # We got an error in the stopped or stopping state? Better just exit.
-                            nextState = SegmentationJob.EXITING
+                            nextState = ServerJob.EXITING
                         else:
                             self.exitFlag = True
-                            nextState = SegmentationJob.STOPPING
-                    elif msg == SegmentationJob.EXIT:
+                            nextState = ServerJob.STOPPING
+                    elif msg == ServerJob.EXIT:
                         self.exitFlag = True
-                        if lastState == SegmentationJob.STOPPING:
-                            nextState = SegmentationJob.EXITING
+                        if lastState == ServerJob.STOPPING:
+                            nextState = ServerJob.EXITING
                         else:
-                            nextState = SegmentationJob.STOPPING
+                            nextState = ServerJob.STOPPING
                     else:
                         raise SyntaxError("Message \"" + msg + "\" not relevant to " + self.stateList[state] + " state")
 # ********************************* EXIT *********************************
-                elif state == SegmentationJob.EXITING:
+                elif state == ServerJob.EXITING:
                     if self.verbose >= 1: self.log('Exiting!')
                     break
                 else:
@@ -681,11 +638,11 @@ class SegmentationJob(StateMachineProcess):
                 # Handle user using keyboard interrupt
                 if self.verbose >= 1: self.log("Keyboard interrupt received - exiting")
                 self.exitFlag = True
-                nextState = SegmentationJob.STOPPING
+                nextState = ServerJob.STOPPING
             except:
                 # HANDLE UNKNOWN ERROR
                 self.errorMessages.append("Error in "+self.stateList[state]+" state\n\n"+traceback.format_exc())
-                nextState = SegmentationJob.ERROR
+                nextState = ServerJob.ERROR
 
             if (self.verbose >= 1 and (len(msg) > 0 or self.exitFlag)) or len(self.logBuffer) > 0 or self.verbose >= 3:
                 self.log("msg={msg}, exitFlag={exitFlag}".format(msg=msg, exitFlag=self.exitFlag))
