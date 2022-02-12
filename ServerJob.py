@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import logging
 from TongueSegmentation import segmentVideo
+from NetworkTraining import trainNetwork
 import copy
 import itertools
 import os
@@ -99,37 +100,41 @@ class TrainJob(ServerJob):
     TYPE = 'Train'
 
     settableParams = [
-        'verbose',
-        'skipExisting'
+        'verbose'
     ]
 
     def __init__(self,
                 verbose = False,
-                videoList = None,
-                maskSaveDirectory = None,
-                segSpec = None,
-                waitingTimeout = 600,
-                binaryThreshold = 0.3,
-                jobNum = None,
+                startNetworkPath = None,
+                newNetworkPath = None,
+                batchSize = 10,
+                numEpochs = 512,
+                augmentData = True,
+                augmentationParameters = {},
+                trainingDataPath = None,
                 generatePreview = True,
-                skipExisting = False,
+                waitingTimeout = 600,
+                jobNum = None,
                 **kwargs):
         ServerJob.__init__(self, logger=kwargs['logger']) #, **kwargs)
         # Store inputs in instance variables for later access
         self.jobNum = jobNum
         self.jobType = TrainJob.TYPE
+        self.startNetworkPath = startNetworkPath
+        self.newNetworkPath = newNetworkPath
+        self.batchSize = batchSize
+        self.numEpochs = numEpochs
+        self.augmentData = augmentData
+        self.augmentationParameters = augmentationParameters
+        self.trainingDataPath = trainingDataPath
+        self.generatePreview = generatePreview
         self.errorMessages = []
         self.verbose = verbose
-        self.videoList = videoList
-        self.maskSaveDirectory = maskSaveDirectory
-        self.segSpec = segSpec
         self.progressQueue = mp.Queue()
         self.waitingTimeout = waitingTimeout
-        self.binaryThreshold = binaryThreshold
-        self.generatePreview = generatePreview
-        self.skipExisting = skipExisting
         self.exitCode = ServerJob.INCOMPLETE
         self.exitFlag = False
+        self.lastEpochTime = None
 
     def setParams(self, **params):
         for key in params:
@@ -139,15 +144,19 @@ class TrainJob(ServerJob):
             else:
                 if self.verbose >= 0: self.log("Param not settable: {key}={val}".format(key=key, val=params[key]))
 
-    def sendProgress(self, currentVideo, processingStartTime): #, finishedVideoList, videoList, currentVideo, processingStartTime):
+    def endEpoch(self, lastEpochNum):
+        self.lastEpochTime = time.time_ns()
+        self.sendProgess(lastEpochNum)
+
+    def sendProgress(self, lastEpochNum): #, finishedVideoList, videoList, currentVideo, processingStartTime):
         # Send progress to server:
         progress = dict(
             # videosCompleted=len(finishedVideoList),
             # videosRemaining=len(videoList),
             log=self.logBuffer,
             exitCode=self.exitCode,
-            lastCompletedVideoPath=currentVideo,
-            lastProcessingStartTime=processingStartTime
+            lastEpochNum=lastEpochNum,
+            lastEpochTime=self.lastEpochTime
         )
         self.logBuffer = []
         self.progressQueue.put(progress)
@@ -194,17 +203,10 @@ class TrainJob(ServerJob):
 # ********************************* INITIALIZING *********************************
                 elif state == ServerJob.INITIALIZING:
                     # DO STUFF
-                    if self.verbose >= 1: self.log('Initializing neural networks...')
-                    self.segSpec.initializeNetworks()
-                    if self.verbose >= 1: self.log('...neural network initialized.')
-                    unfinishedVideoList = copy.deepcopy(self.videoList)
-                    finishedVideoList = []
-                    videoIndex = 0
-                    processingStartTime = None
-                    currentVideo = None
-                    if self.verbose >= 3: self.log('Server job initialized!')
+                    lastEpochNum = 0
+                    if self.verbose >= 3: self.log('Train job initialized!')
 #                    self.sendProgress(finishedVideoList, self.videoList, None, processingStartTime)
-                    self.sendProgress(currentVideo, processingStartTime)
+                    self.sendProgress(lastEpochNum, self.lastEpochTime)
 
                     # CHECK FOR MESSAGES
                     try:
@@ -254,27 +256,24 @@ class TrainJob(ServerJob):
                 elif state == ServerJob.WORKING:
                     # DO STUFF
                     # Record processing time
-                    processingStartTime = time.time_ns()
+                    # processingStartTime = time.time_ns()
                     # Segment video
-                    currentVideo = self.videoList.pop(0)
-                    segmentVideo(
-                        videoPath=currentVideo,
-                        segSpec=self.segSpec,
-                        maskSaveDirectory=self.maskSaveDirectory,
-                        videoIndex=videoIndex,
-                        binaryThreshold=self.binaryThreshold,
-                        generatePreview=self.generatePreview,
-                        skipExisting=self.skipExisting
+
+                    trainNetwork(
+                        self.startNetworkPath,
+                        self.trainingDataPath,
+                        augment=self.augmentData,
+                        batch_size=self.batchSize,
+                        epochs=self.numEpochs,
+                        data_augmentation_parameters=self.augmentationParameters,
+                        epoch_progress_callback=self.endEpoch
                     )
-                    videoIndex += 1
-                    finishedVideoList.append(currentVideo)
-#                    self.sendProgress(finishedVideoList, self.videoList, currentVideo, processingStartTime)
-                    self.sendProgress(currentVideo, processingStartTime)
-                    if self.verbose >= 3: self.log('Server job progress: {prog}'.format(prog=progress))
+
+                    # self.sendProgress(currentVideo, processingStartTime)
+                    # if self.verbose >= 3: self.log('Server job progress: {prog}'.format(prog=progress))
                     # Are we done?
-                    if len(self.videoList) == 0:
-                        if self.verbose >= 2: self.log('Server job complete, setting exit flag to true.')
-                        self.exitFlag = True
+                    if self.verbose >= 2: self.log('Server job complete, setting exit flag to true.')
+                    self.exitFlag = True
 
                     # CHECK FOR MESSAGES
                     try:
@@ -287,7 +286,8 @@ class TrainJob(ServerJob):
                         self.exitCode = ServerJob.SUCCEEDED
                         nextState = ServerJob.STOPPING
                     elif msg in ['', ServerJob.START]:
-                        nextState = ServerJob.WORKING
+                        # nextState = ServerJob.WORKING
+                        nextState = ServerJob.STOPPING
                     elif msg == ServerJob.EXIT:
                         self.exitCode = ServerJob.SUCCEEDED
                         self.exitFlag = True
