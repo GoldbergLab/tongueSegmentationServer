@@ -771,7 +771,7 @@ class SegmentationServer:
             heightShiftRange=augmentationParameters['heightShiftRange'],
             zoomRange=augmentationParameters['zoomRange'],
             horizontalFlip=augmentationParameters['horizontalFlip'],
-            verticalFlip=augmentationParameters['verticalFlip']
+            verticalFlip=augmentationParameters['verticalFlip'],
             generatePreview=generateValidationPreview,
             jobID=jobNum,
             jobName=jobName,
