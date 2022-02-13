@@ -1,0 +1,84 @@
+<html>
+  <head>
+    {headLinksHTML}
+  </head>
+  <body>
+    {navBarHTML}
+    <div class="section">
+      <div class="container">
+        <h1 class="section-heading">
+          Finalize network training job
+        </h1>
+      </div>
+    </div>
+    <div class="section">
+      <div class="container">
+        <div class="row">
+          <div class='twelve columns'>
+            There are <strong>{jobsAhead} jobs</strong> ahead of you with <strong>{videosAhead} videos</strong> and <strong>{epochsAhead} training epochs</strong> remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
+          </div>
+        </div>
+        <div class="row">
+          <div class='twelve columns'>
+            Please review the following job specifications and confirm if correct:
+          </div>
+        </div>
+        <div class="row">
+          <div class="three columns">Job description:</div><div class="nine columns"><strong>{jobName}</strong></div>
+        </div>
+        <div class="row">
+          <div class="three columns">Initial network name:</div><div class="nine columns"><strong>{startNetworkName}</strong></div>
+        </div>
+        <div class="row">
+          <div class="three columns">New network name:</div><div class="nine columns"><strong>{newNetworkName}</strong></div>
+        </div>
+        <div class="row">
+          <div class="three columns">Batch size:</div><div class="nine columns"><strong>{batchSize}</strong></div>
+        </div>
+        <div class="row">
+          <div class="three columns"># of epochs:</div><div class="nine columns"><strong>{numEpochs}</strong></div>
+        </div>
+        <div class="row">
+          <div class="three columns">Randomly augment data?:</div><div class="nine columns"><strong>{augmentData}</strong></div>
+        </div>
+        <div id='augmentationParameters'>
+          <div class="row">
+            <div class="three columns">Rotation range:</div><div class="nine columns"><strong>{rotationRange}</strong></div>
+          </div>
+          <div class="row">
+            <div class="three columns">Width shift range:</div><div class="nine columns"><strong>{widthShiftRange}</strong></div>
+          </div>
+          <div class="row">
+            <div class="three columns">Height shift range:</div><div class="nine columns"><strong>{heightShiftRange}</strong></div>
+          </div>
+          <div class="row">
+            <div class="three columns">Zoom range:</div><div class="nine columns"><strong>{zoomRange}</strong></div>
+          </div>
+          <div class="row">
+            <div class="three columns">Horizontal flip?</div><div class="nine columns"><strong>{horizontalFlip}</strong></div>
+          </div>
+          <div class="row">
+            <div class="three columns">Vertical Flip?</div><div class="nine columns"><strong>{verticalFlip}</strong></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="three columns">Inter-epoch validation preview?</div><div class="nine columns"><strong>{generatePreview}</strong></div>
+        </div>
+        <div class="row">
+          <form action="/confirmJob/{jobID}">
+              <input class="five columns button button-primary" type="submit" value="Confirm and enqueue job" />
+          </form>
+          <div class="two columns"></div>
+          <form action="/cancelJob/{jobID}">
+              <input class="five columns button button" type="submit" value="Cancel job" />
+          </form>
+        </div>
+      </div>
+    </div>
+  </body>
+  <script>
+    if ({augmentData} == 'No') {
+      document.getElementByID('augmentationParameters').display = 'none';
+    }
+  </script>
+</html>

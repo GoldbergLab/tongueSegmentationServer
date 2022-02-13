@@ -231,6 +231,7 @@ class SegmentationServer:
         self.routes = [
             ('/static/*',                   self.staticHandler),
             ('/finalizeSegmentationJob',    self.finalizeSegmentationJobHandler),
+            ('/finalizeTrainJob',           self.finalizeTrainJobHandler),
             ('/confirmJob/*',               self.confirmJobHandler),
             ('/checkProgress/*',            self.checkProgressHandler),
             ('/updateQueue',                self.updateJobQueueHandler),
@@ -720,6 +721,7 @@ class SegmentationServer:
 
         jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
         videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+        epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
 
         self.jobQueue[jobNum] = dict(
             job=None,                                       # Job process object
@@ -746,42 +748,43 @@ class SegmentationServer:
         )
 
         if startNetworkPath is None:
-            startNetworkPathText = "Start with randomized network"
+            startNetworkNameText = "Randomized (naive) network"
         else:
-            startNetworkPathText = str(startNetworkName)
-        if topWidth is None:
-            topWidthText = "Use network size"
+            startNetworkNameText = str(startNetworkName)
+        if augmentData:
+            augmentDataText = 'Yes'
         else:
-            topWidthText = str(topWidth)
-        if botHeight is None:
-            botHeightText = "Use network size"
-        else:
-            botHeightText = str(botHeight)
-        if botWidth is None:
-            botWidthText = "Use network size"
-        else:
-            botWidthText = str(botWidth)
+            augmentDataText = 'No'
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
             'FinalizeTrainJob.html',
             videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
-            topNetworkName=topNetworkPath.name,
-            botNetworkName=botNetworkPath.name,
-            binaryThreshold=binaryThreshold,
-            topOffset=topOffset,
-            topHeight=topHeightText,
-            topWidth=topWidthText,
-            botHeight=botHeightText,
-            botWidth=botWidthText,
-            generatePreview=generatePreview,
-            skipExisting=skipExisting,
+            startNetworkName=startNetworkNameText,
+            newNetworkName=newNetworkName,
+            batchSize=batchSize,
+            numEpochs=numEpochs,
+            augmentData=augmentDataText,
+            rotationRange=augmentationParameters['rotationRange'],
+            widthShiftRange=augmentationParameters['widthShiftRange'],
+            heightShiftRange=augmentationParameters['heightShiftRange'],
+            zoomRange=augmentationParameters['zoomRange'],
+            horizontalFlip=augmentationParameters['horizontalFlip'],
+            verticalFlip=augmentationParameters['verticalFlip']
+            generatePreview=generateValidationPreview,
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
-            videosAhead=videosAhead
+            videosAhead=videosAhead,
+            epochsAhead=epochsAhead,
         )
+
+    def formatDictionaryHTML(d):
+        html = '<ul>\n{items}\n</ul>'.format(
+            items = '\n'.join(['<li>{key}: {val}</li>'.format(key=key, val=d[key]) for key in d])
+        )
+        return html
 
     def startJob(self, jobNum):
         self.jobQueue[jobNum]['job'] = SegmentationJob(

@@ -31,7 +31,7 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
     batch_size=10, epochs=512, image_field_name='imageStack',
     mask_field_name='maskStack', data_augmentation_parameters={},
     epoch_progress_callback=None):
-
+    # Actually train the network, saving the best network to a file after each epoch.
     # augment = boolean flag indicating whether to randomly augment training data
     # batch_size = Size of training batches (size of batches that dataset is divided into for each epoch):
     # epochs = Number of training epochs (training runs through whole dataset):
