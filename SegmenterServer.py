@@ -60,6 +60,7 @@ STATIC_SUBFOLDER = 'static'
 ROOT = '.'
 PRIVATE_SUBFOLDER = 'private'
 AUTH_NAME = 'Auth.json'
+REMOVED_NETWORKS_SUBFOLDER = 'deleted'
 
 DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
 DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
@@ -68,10 +69,11 @@ RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
 ROOT_PATH = Path(ROOT)
 NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
+REMOVED_NETWORKS_FOLDER = NETWORKS_FOLDER / REMOVED_NETWORKS_SUBFOLDER
 LOGS_FOLDER = ROOT_PATH / LOGS_SUBFOLDER
 STATIC_FOLDER = ROOT_PATH / STATIC_SUBFOLDER
 PRIVATE_FOLDER = ROOT_PATH / PRIVATE_SUBFOLDER
-REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER, PRIVATE_FOLDER]
+REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER, PRIVATE_FOLDER, REMOVED_NETWORKS_FOLDER]
 for reqFolder in REQUIRED_SUBFOLDERS:
     if not reqFolder.exists():
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
@@ -245,6 +247,7 @@ class SegmentationServer:
             ('/finalizePassword',           self.finalizePasswordHandler),
             ('/reloadAuth',                 self.reloadAuthHandler),
             ('/train',                      self.trainHandler),
+            ('/manageNetworks',             self.manageNetworksHandler),
             ('/',                           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -345,6 +348,27 @@ class SegmentationServer:
             raise OSError('This software is only compatible with POSIX or Windows')
         return mounts
 
+    def removeNeuralNetwork(self, name):
+        # Move a neural network file out of the main networks directory into
+        #   the "deleted" subdirectory so they won't be listed any more.
+        oldPath = NETWORKS_FOLDER / name
+        newPath = REMOVED_NETWORKS_FOLDER / name
+        if oldPath.is_file():
+            os.rename(oldPath, newPath)
+
+    def renameNeuralNetwork(self, oldName, newName, overwrite=False):
+        # Rename a neural network within the neural networks directory.
+        oldPath = NETWORKS_FOLDER / oldName
+        newPath = NETWORKS_FOLDER / newName
+        if not oldPath.is_file():
+            return False, 'Not a file'
+        if newPath.is_file():
+            if not overwrite:
+                return False, 'New name already exists'
+        else:
+            os.rename(oldPath, newPath)
+            return True, None
+
     def getNeuralNetworkList(self):
         # Generate a list of available neural networks
         p = Path('.') / NETWORKS_SUBFOLDER
@@ -355,7 +379,15 @@ class SegmentationServer:
                 networks.append(item.name)
         return networks
 
+    def createBulletedList(d):
+        # Create an HTML string representing a bulleted list from a dictionary
+        html = '<ul>\n{items}\n</ul>'.format(
+            items = '\n'.join(['<li>{key}: {val}</li>'.format(key=key, val=d[key]) for key in d])
+        )
+        return html
+
     def createOptionList(self, optionValues, defaultValue=None, optionNames=None):
+        # Create an HTML string representing a set of drop-down list options
         if optionNames is None:
             optionNames = optionValues
         options = []
@@ -779,12 +811,6 @@ class SegmentationServer:
             videosAhead=videosAhead,
             epochsAhead=epochsAhead,
         )
-
-    def formatDictionaryHTML(d):
-        html = '<ul>\n{items}\n</ul>'.format(
-            items = '\n'.join(['<li>{key}: {val}</li>'.format(key=key, val=d[key]) for key in d])
-        )
-        return html
 
     def startJob(self, jobNum):
         self.jobQueue[jobNum]['job'] = SegmentationJob(
@@ -1217,6 +1243,51 @@ class SegmentationServer:
 
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
+        neuralNetworkList = self.getNeuralNetworkList()
+        mountList = self.getMountList(includePosixLocal=True)
+        mountURIs = mountList.keys()
+        mountPaths = [mountList[k] for k in mountURIs]
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
+        if 'QUERY_STRING' in environ:
+            queryString = environ['QUERY_STRING']
+        else:
+            queryString = 'None'
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        logger.log(logging.INFO, 'Creating return data')
+
+        username = getUsername(environ)
+
+        if len(neuralNetworkList) > 0:
+            topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
+            botNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_BOT_NETWORK_NAME)
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            return self.formatHTML(
+                environ,
+                'Index.html',
+                query=queryString,
+                # mounts=mountList,
+                # environ=environ,
+                input=postData,
+                remoteUser=username,
+                path=environ['PATH_INFO'],
+                nopts_bot=botNetworkOptionText,
+                nopts_top=topNetworkOptionText,
+                mopts=mountOptionsText
+                )
+        else:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Neural network error',
+                errorMsg='No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER),
+                linkURL='/',
+                linkAction='retry job creation once a neural network has been uploaded'
+            )
+
+    def manageNetworksHandler(self, environ, start_fn):
+        logger.log(logging.INFO, 'Serving manage networks file')
         neuralNetworkList = self.getNeuralNetworkList()
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
