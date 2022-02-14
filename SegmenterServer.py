@@ -247,7 +247,9 @@ class SegmentationServer:
             ('/finalizePassword',           self.finalizePasswordHandler),
             ('/reloadAuth',                 self.reloadAuthHandler),
             ('/train',                      self.trainHandler),
-            ('/manageNetworks',             self.manageNetworksHandler),
+            ('/manageNetworks',             self.networkManagementHandler),
+            ('/manageNetworks/rename/*',    self.networkRenameHandler),
+            ('/manageNetworks/remove/*',    self.networkRemoveHandler),
             ('/',                           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -369,15 +371,23 @@ class SegmentationServer:
             os.rename(oldPath, newPath)
             return True, None
 
-    def getNeuralNetworkList(self):
+    def getNeuralNetworkList(self, includeTimestamps=False):
         # Generate a list of available neural networks
         p = Path('.') / NETWORKS_SUBFOLDER
         networks = []
+        timestamps = []
         for item in p.iterdir():
             if item.suffix in NEURAL_NETWORK_EXTENSIONS:
                 # This is a neural network file
                 networks.append(item.name)
-        return networks
+                if includeTimestamps:
+                    ts = item.stat().st_mtime
+                    t = dt.datetime.fromtimestamp(ts)
+                    timestamps.append(t)
+        if includeTimestamps:
+            return networks, timestamps
+        else:
+            return networks
 
     def createBulletedList(d):
         # Create an HTML string representing a bulleted list from a dictionary
@@ -479,14 +489,28 @@ class SegmentationServer:
         completedVideosAhead = 0
         queuedVideosAhead = 0
         for jobNum in self.jobQueue:
-            if beforeJobNum is not None and jobNum == beforeJobNum:
-                # This is the specified job num - stop, don't count any more
-                break
-            if self.jobQueue[jobNum]['completionTime'] is None:
-                completedVideosAhead += len(self.jobQueue[jobNum]['completedVideoList'])
-                queuedVideosAhead += len(self.jobQueue[jobNum]['videoList'])
+            if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                # Job is a segmentation job, not a training job.
+                if beforeJobNum is not None and jobNum == beforeJobNum:
+                    # This is the specified job num - stop, don't count any more
+                    break
+                if self.jobQueue[jobNum]['completionTime'] is None:
+                    completedVideosAhead += len(self.jobQueue[jobNum]['completedVideoList'])
+                    queuedVideosAhead += len(self.jobQueue[jobNum]['videoList'])
         videosAhead = queuedVideosAhead - completedVideosAhead
         return videosAhead
+
+    def countEpochsRemaining(self, beforeJobNum=None):
+        epochsAhead = 0
+        for jobNum in self.jobQueue:
+            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                # Job is a training job, not a segmentation job.
+                if beforeJobNum is not None and jobNum == beforeJobNum:
+                    # This is the specified job num - stop, don't count any more
+                    break
+                if self.jobQueue[jobNum]['completionTime'] is None:
+                    epochsAhead += self.jobQueue[jobNum][numEpochs] - self.jobQueue[jobNum][lastEpochNumber]
+        return epochsAhead
 
     def finalizeSegmentationJobHandler(self, environ, start_fn):
         # Display page showing what job will be, and offering opportunity to go ahead or cancel
@@ -601,10 +625,13 @@ class SegmentationServer:
 
         jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
         videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+        epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
 
         self.jobQueue[jobNum] = dict(
             job=None,                               # Job process object
             jobName=jobName,                        # Name/description of job
+            jobType=SEGMENT_TYPE,                   # Type of job (segment or train)
+            jobClass=SegmentationJob,               # Reference to job class
             owner=getUsername(environ),             # Owner of job, has special privileges
             jobNum=jobNum,                          # Job ID
             confirmed=False,                        # Has user confirmed params yet
@@ -659,7 +686,8 @@ class SegmentationServer:
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
-            videosAhead=videosAhead
+            videosAhead=videosAhead,
+            epochsAhead=epochsAhead
         )
 
     def finalizeTrainJobHandler(self, environ, start_fn):
@@ -758,6 +786,8 @@ class SegmentationServer:
         self.jobQueue[jobNum] = dict(
             job=None,                                       # Job process object
             jobName=jobName,                                # Name/description of job
+            jobType=TRAIN_TYPE,                             # Type of job (segment or train)
+            jobClass=TrainJob,                              # Reference to job class
             owner=getUsername(environ),                     # Owner of job, has special privileges
             jobNum=jobNum,                                  # Job ID
             confirmed=False,                                # Has user confirmed params yet
@@ -809,11 +839,12 @@ class SegmentationServer:
             jobName=jobName,
             jobsAhead=jobsAhead,
             videosAhead=videosAhead,
-            epochsAhead=epochsAhead,
+            epochsAhead=epochsAhead
         )
 
     def startJob(self, jobNum):
-        self.jobQueue[jobNum]['job'] = SegmentationJob(
+        # Instantiate new job object of the appropriate class
+        self.jobQueue[jobNum]['job'] = self.jobQueue[jobNum]['jobClass'](
             verbose = 1,
             logger=logger,
             **self.jobQueue[jobNum]
@@ -876,6 +907,10 @@ class SegmentationServer:
         return jobNums
 
     def confirmJobHandler(self, environ, start_fn):
+        # On either finalize job page, if the user clicks "confirm", the request
+        #   goes to this handler, which changes the "confirmed" state of the job
+        #   to True.
+
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
 #        logger.log(logging.INFO, 'getJobNums(active=False, completed=False) - is job {jobNum} ready for confirming?'.format(jobNum=jobNum))
@@ -941,7 +976,7 @@ class SegmentationServer:
             jobState = job.publishedStateVar.value
             # Update progress
             self.updateJobProgress(jobNum)
-#            jobStateName = SegmentationJob.stateList[jobState]
+#            jobStateName = ServerJob.stateList[jobState]
             if jobState == ServerJob.STOPPED:
                 pass
             elif jobState == ServerJob.INITIALIZING:
@@ -1059,7 +1094,7 @@ class SegmentationServer:
         if self.jobQueue[jobNum]['job'] is not None:
             # Job has started. Check its state
             jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
-            jobStateName = SegmentationJob.stateList[jobState]
+            jobStateName = ServerJob.stateList[jobState]
             # Get all pending updates on its progress
             self.updateJobProgress(jobNum)
         else:
@@ -1286,51 +1321,6 @@ class SegmentationServer:
                 linkAction='retry job creation once a neural network has been uploaded'
             )
 
-    def manageNetworksHandler(self, environ, start_fn):
-        logger.log(logging.INFO, 'Serving manage networks file')
-        neuralNetworkList = self.getNeuralNetworkList()
-        mountList = self.getMountList(includePosixLocal=True)
-        mountURIs = mountList.keys()
-        mountPaths = [mountList[k] for k in mountURIs]
-        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
-        if 'QUERY_STRING' in environ:
-            queryString = environ['QUERY_STRING']
-        else:
-            queryString = 'None'
-        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
-        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
-
-        logger.log(logging.INFO, 'Creating return data')
-
-        username = getUsername(environ)
-
-        if len(neuralNetworkList) > 0:
-            topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
-            botNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_BOT_NETWORK_NAME)
-            start_fn('200 OK', [('Content-Type', 'text/html')])
-            return self.formatHTML(
-                environ,
-                'Index.html',
-                query=queryString,
-                # mounts=mountList,
-                # environ=environ,
-                input=postData,
-                remoteUser=username,
-                path=environ['PATH_INFO'],
-                nopts_bot=botNetworkOptionText,
-                nopts_top=topNetworkOptionText,
-                mopts=mountOptionsText
-                )
-        else:
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return self.formatError(
-                environ,
-                errorTitle='Neural network error',
-                errorMsg='No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER),
-                linkURL='/',
-                linkAction='retry job creation once a neural network has been uploaded'
-            )
-
     def trainHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving network training file')
         existingNeuralNetworkList = [RANDOM_TRAINING_NETWORK_NAME] + self.getNeuralNetworkList()
@@ -1450,6 +1440,130 @@ class SegmentationServer:
             tbody=jobEntryTableBody,
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
             user=user
+        )
+
+    def networkRenameHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
+
+        # Get old and new names from URL
+        oldName, newName = int(environ['PATH_INFO'].split('/')[-2:])
+        oldPath = NETWORK_FOLDER / oldName
+        newPath = NETWORK_FOLDER / newName
+        if oldPath not in self.getNeuralNetworkList():
+            # Invalid name
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot rename - network does not exist',
+                errorMsg='Something went wrong - could not find network {netName}'.format(netName=oldName),
+                linkURL='/manageNetworks',
+                linkAction='go back to network management'
+            )
+        elif newPath in self.getNeuralNetworkList():
+            # New name already exists
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot rename - name already in use',
+                errorMsg='A network by the name \"{netName}\" already exists. Please rename or remove that network first.'.format(netName=newName),
+                linkURL='/manageNetworks',
+                linkAction='go back to network management'
+            )
+        else:
+            # Valid network names - execute rename operation
+            logger.log(logging.INFO, 'Renaming net \"{oldName}\" to \"{newName}\"'.format(oldName=oldName, newName=newName))
+            try:
+                renameNeuralNetwork(oldPath, newPath)
+            except FileNotFoundError:
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='An error occurred when renaming \"{oldName}\" to \"{newName}\". Please check that the new name only contains valid filename characters.'.format(oldName=oldName, newName=newName),
+                    linkURL='/manageNetworks',
+                    linkAction='go back to network management'
+                )
+            except PermissionError:
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='A permission error occurred when renaming \"{oldName}\" to \"{newName}\". Please check the permissions for the network file.'.format(oldName=oldName, newName=newName),
+                    linkURL='/manageNetworks',
+                    linkAction='go back to network management'
+                )
+        start_fn('303 See Other', [('Location','/manageNetworks')])
+        return []
+
+    def removeRenameHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
+
+        # Get old and new names from URL
+        netName = int(environ['PATH_INFO'].split('/')[-1])
+        netPath = NETWORK_FOLDER / netName
+        if netPath not in self.getNeuralNetworkList():
+            # Invalid name
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot remove - network does not exist',
+                errorMsg='Something went wrong - could not find network {netName}'.format(netName=netName),
+                linkURL='/manageNetworks',
+                linkAction='go back to network management'
+            )
+        else:
+            # Valid network names - execute remove operation
+            logger.log(logging.INFO, 'Removing net \"{netName}\"'.format(netName=netName))
+            try:
+                removeNeuralNetwork(netPath)
+            except FileNotFoundError:
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='An error occurred when removing \"{oldName}\" - could not find network.'.format(netName=netName),
+                    linkURL='/manageNetworks',
+                    linkAction='go back to network management'
+                )
+            except PermissionError:
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='A permission error occurred when removing \"{netName}\". Please check the permissions for the network file.'.format(netName=netName),
+                    linkURL='/manageNetworks',
+                    linkAction='go back to network management'
+                )
+        start_fn('303 See Other', [('Location','/manageNetworks')])
+        return []
+
+    def networkManagementHandler(self, environ, start_fn):
+        if not isAdmin(getUsername(environ)):
+            # User is not authorized
+            return self.unauthorizedHandler(environ, start_fn)
+
+        networkPaths, networkTimestamps = self.getNeuralNetworkList(includeTimestamps=True)
+
+        with open('NetworkManagementTableRowTemplate.html', 'r') as f:
+            networkEntryTemplate = f.read()
+
+        networkEntries = []
+        for k, networkPath, timestamp in enumerate(zip(networkPaths, networkTimestamps)):
+            networkEntries.append(
+                networkEntryTemplate.format(
+                    netNum = k,
+                    netName = networkPath.name,
+                    netTime = timestamp
+                )
+            )
+        networkEntryTableBody = '\n'.join(networkEntries)
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'NetworkManagement.html',
+            tbody=networkEntryTableBody,
+            numNetworks=len(networkPaths),
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
         )
 
     def serverManagementHandler(self, environ, start_fn):
