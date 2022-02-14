@@ -289,7 +289,7 @@ class SegmentationServer:
         else:
             message = ''
 
-        with open('NavBar.html', 'r') as f:
+        with open('html/NavBar.html', 'r') as f:
             navBarHTML = f.read()
             jobsRemaining = self.countJobsRemaining()
             videosRemaining = self.countVideosRemaining()
@@ -299,7 +299,7 @@ class SegmentationServer:
                 serverStatus = "Status: idle"
             user = getUsername(environ)
             navBarHTML = navBarHTML.format(user=user, serverStatus=serverStatus)
-        with open('HeadLinks.html', 'r') as f:
+        with open('html/HeadLinks.html', 'r') as f:
             headLinksHTML = f.read()
             headLinksHTML = headLinksHTML.format(message=message)
 
@@ -313,7 +313,7 @@ class SegmentationServer:
         return [html.encode('utf-8')]
 
     def formatError(self, environ, errorTitle='Error', errorMsg='Unknown error!', linkURL='/', linkAction='retry job creation'):
-        return self.formatHTML(environ, 'Error.html', errorTitle=errorTitle, errorMsg=errorMsg, linkURL=linkURL, linkAction=linkAction)
+        return self.formatHTML(environ, 'html/Error.html', errorTitle=errorTitle, errorMsg=errorMsg, linkURL=linkURL, linkAction=linkAction)
 
     def getMountList(self, includePosixLocal=False):
         mounts = {}
@@ -417,7 +417,7 @@ class SegmentationServer:
         if len(URLparts) < 2:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            with open('html/Error.html', 'r') as f: htmlTemplate = f.read()
             return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
@@ -462,7 +462,7 @@ class SegmentationServer:
         else:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            with open('html/Error.html', 'r') as f: htmlTemplate = f.read()
             return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
@@ -671,7 +671,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'FinalizeSegmentationJob.html',
+            'html/FinalizeSegmentationJob.html',
             videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
             topNetworkName=topNetworkPath.name,
             botNetworkName=botNetworkPath.name,
@@ -821,7 +821,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'FinalizeTrainJob.html',
+            'html/FinalizeTrainJob.html',
             videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
             startNetworkName=startNetworkNameText,
             newNetworkName=newNetworkName,
@@ -1237,10 +1237,10 @@ class SegmentationServer:
         skipExisting = self.jobQueue[jobNum]['skipExisting']
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
-        with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
+        with open('html/CheckProgress.html', 'r') as f: htmlTemplate = f.read()
         return self.formatHTML(
             environ,
-            'CheckProgress.html',
+            'html/CheckProgress.html',
             meanTime=meanTimeStr,
             confInt=timeConfIntStr,
             videoList=completedVideoListHTML,
@@ -1300,7 +1300,7 @@ class SegmentationServer:
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return self.formatHTML(
                 environ,
-                'Index.html',
+                'html/Index.html',
                 query=queryString,
                 # mounts=mountList,
                 # environ=environ,
@@ -1343,7 +1343,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'Train.html',
+            'html/Train.html',
             query=queryString,
             # mounts=mountList,
             # environ=environ,
@@ -1415,7 +1415,7 @@ class SegmentationServer:
     def myJobsHandler(self, environ, start_fn):
         user = getUsername(environ)
 
-        with open('MyJobsTableRowTemplate.html', 'r') as f:
+        with open('html/MyJobsTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
 
         jobEntries = []
@@ -1436,7 +1436,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'MyJobs.html',
+            'html/MyJobs.html',
             tbody=jobEntryTableBody,
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
             user=user
@@ -1544,7 +1544,7 @@ class SegmentationServer:
 
         networkPaths, networkTimestamps = self.getNeuralNetworkList(includeTimestamps=True)
 
-        with open('NetworkManagementTableRowTemplate.html', 'r') as f:
+        with open('html/NetworkManagementTableRowTemplate.html', 'r') as f:
             networkEntryTemplate = f.read()
 
         networkEntries = []
@@ -1560,7 +1560,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'NetworkManagement.html',
+            'html/NetworkManagement.html',
             tbody=networkEntryTableBody,
             numNetworks=len(networkPaths),
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
@@ -1573,7 +1573,7 @@ class SegmentationServer:
 
         allJobNums = self.getJobNums()
 
-        with open('ServerManagementTableRowTemplate.html', 'r') as f:
+        with open('html/ServerManagementTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
 
         serverStartTime = self.startTime.strftime(HTML_DATE_FORMAT)
@@ -1601,7 +1601,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'ServerManagement.html',
+            'html/ServerManagement.html',
             tbody=jobEntryTableBody,
             startTime=serverStartTime,
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
@@ -1628,7 +1628,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'Help.html',
+            'html/Help.html',
             user=user
         )
 
@@ -1638,7 +1638,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'ChangePassword.html',
+            'html/ChangePassword.html',
             user=user
         )
 
@@ -1683,7 +1683,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'PasswordChanged.html',
+            'html/PasswordChanged.html',
             user=user,
             message="Password succesfully changed!"
         )
