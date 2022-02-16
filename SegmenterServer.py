@@ -31,6 +31,8 @@ import re
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
+LOGS_SUBFOLDER = 'logs'
+
 def initializeLogger():
     logger = logging.getLogger(__name__)
 
@@ -53,9 +55,10 @@ def initializeLogger():
     # logger.addHandler(ch)
     return logger
 
+logger = initializeLogger()
+
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5', '.hdf5']
 NETWORKS_SUBFOLDER = 'networks'
-LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
 PRIVATE_SUBFOLDER = 'private'
@@ -81,7 +84,6 @@ for reqFolder in REQUIRED_SUBFOLDERS:
 
 AUTH_FILE = PRIVATE_FOLDER / AUTH_NAME
 
-logger = initializeLogger()
 
 def validPassword(password):
     valid = re.search('[a-zA-Z]', password) is not None and re.search('[0-9]', password) is not None and len(password) >= 6 and len(password) <= 15
@@ -1495,7 +1497,7 @@ class SegmentationServer:
         start_fn('303 See Other', [('Location','/manageNetworks')])
         return []
 
-    def removeRenameHandler(self, environ, start_fn):
+    def networkRemoveHandler(self, environ, start_fn):
         if not isAdmin(getUsername(environ)):
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
