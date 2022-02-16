@@ -31,6 +31,8 @@ import re
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
+LOGS_SUBFOLDER = 'logs'
+
 def initializeLogger():
     logger = logging.getLogger(__name__)
 
@@ -53,9 +55,10 @@ def initializeLogger():
     # logger.addHandler(ch)
     return logger
 
+logger = initializeLogger()
+
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5', '.hdf5']
 NETWORKS_SUBFOLDER = 'networks'
-LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
 PRIVATE_SUBFOLDER = 'private'
@@ -81,7 +84,6 @@ for reqFolder in REQUIRED_SUBFOLDERS:
 
 AUTH_FILE = PRIVATE_FOLDER / AUTH_NAME
 
-logger = initializeLogger()
 
 def validPassword(password):
     valid = re.search('[a-zA-Z]', password) is not None and re.search('[0-9]', password) is not None and len(password) >= 6 and len(password) <= 15
@@ -1503,13 +1505,21 @@ class SegmentationServer:
         for jobNum in self.getJobNums(owner=user):
             state = self.getHumanReadableJobState(jobNum)
 
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum):
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                jobType = 'Train'
+            elif self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                jobType = 'Segment'
+            else:
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
 
             jobEntries.append(jobEntryTemplate.format(
                 percentComplete=percentComplete,
                 jobNum=jobNum,
+                jobType=jobType,
+                numTasks=numTasks,
                 jobDescription=self.jobQueue[jobNum]['jobName'],
                 state=state
             ))
@@ -1576,7 +1586,7 @@ class SegmentationServer:
         start_fn('303 See Other', [('Location','/manageNetworks')])
         return []
 
-    def removeRenameHandler(self, environ, start_fn):
+    def networkRemoveHandler(self, environ, start_fn):
         if not isAdmin(getUsername(environ)):
             # User is not authorized
             return self.unauthorizedHandler(environ, start_fn)
@@ -1647,6 +1657,17 @@ class SegmentationServer:
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
         )
 
+    def getJobProgress(self, jobNum):
+        if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+            numTasks = len(self.jobQueue[jobNum]['videoList'])
+            numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
+        elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+            numTasks = self.jobQueue[jobNum]['numEpochs']
+            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNumber']
+        else:
+            raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
+        return numTasks, numCompletedTasks
+
     def serverManagementHandler(self, environ, start_fn):
         if not isAdmin(getUsername(environ)):
             # User is not authorized
@@ -1663,12 +1684,19 @@ class SegmentationServer:
         for jobNum in allJobNums:
             state = self.getHumanReadableJobState(jobNum)
 
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum):
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                jobType = 'Train'
+            elif self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                jobType = 'Segment'
+            else:
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
 
             jobEntries.append(jobEntryTemplate.format(
-                numVideos = numVideos,
+                numTasks = numVideos,
+                jobType = jobType,
                 numCompletedVideos = numCompletedVideos,
                 percentComplete = percentComplete,
                 jobNum=jobNum,

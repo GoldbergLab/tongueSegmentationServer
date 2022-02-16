@@ -26,6 +26,16 @@
         judged to NOT be part of a mouse tongue. White pixels in the masks represent pixels in your original video that have been judged
         INDEED to be part of a mouse tongue. A mask stack is a series of masks with each mask corresponding to a frame in a video.
       </div>
+      <div class="row">
+        <h4>Training data &#8594; trained network</h4>
+      </div>
+      <div class="row subsection">
+        SPIT also is capable of training networks to segment videos. By specifying the location of a .mat file containing an imageStack attribute
+        (which is a 3D array representing a stack of images) and maskStack (which is a 3D array representing a stack of binary pixel classification
+        masks), SPIT will use the training data to learn how to segment video frames into two categories. You can start from a random (naive) network,
+        or you can specify a pre-existing network to add training to. Once the network is trained, it will be automatically available for use segmenting
+        videos.
+      </div>
       <hr>
       <div class="row">
         <h4>Top and Bot</h4>
@@ -38,29 +48,56 @@
       </div>
       <hr>
       <div class="row">
-        <h4>So how do I use it?</h4>
+        <h4>So how do I use it to segment videos?</h4>
       </div>
       <div class="row subsection">
         <ol>
           <li>
-            Go to the "<strong>New job</strong>" page (linked in the nav bar above). Enter parameters for where and how to segment your videos. You will be taken to the "Finalize job" page.
+            Go to the "<strong>New seg job</strong>" page (linked in the nav bar above). Enter parameters for where and how to segment your videos. You will be taken to the "Finalize job" page.
           </li>
           <li>
             On the "<strong>Finalize job</strong>" page look over the parameters you chose, and click "Finalize job" if they are correct. You will be taken to the "Check progress" page.
           </li>
           <li>
-            On the "<strong>Check progress</strong>" page, you can monitor the progress of your job. You do NOT need to keep the browser tab open - closing it will not affect your job.
+            On the "<strong>Check progress</strong>" page, you can monitor the progress of your job. If you are first in line, your job will start immediately. If not, it will
+            start as soon as all the jobs ahead of you finsih. You do NOT need to keep the browser tab open - closing it will not affect your job.
             If you wish, you can bookmark the "Check progress" page so you can come back to it later. That page will remain connected to your job until one day after the job
             terminates.
           </li>
           <li>
               As your job progresses, the "<strong>Check progress</strong>" page will show statistics, as well as a preview of the most recently created masks.
-              If another job is already running on the server, your job will be put in a queue, and will start automatically when it is at the front
-              of the queue. If you wish to change your job's parameters, you can always terminate the job from the "Check progress" screen and resubmit a new job,
+              If you wish to change your job's parameters, you can always terminate the job from the "Check progress" screen and resubmit a new job,
               but your new job will go to the back of the queue if there are other jobs waiting.
           </li>
           <li>
             When your job is done, you can find the completed mask stack files in whatever folder you specified as the mask output folder.
+          </li>
+        </ol>
+      </div>
+      <div class="row">
+        <h4>So how do I use it to train networks?</h4>
+      </div>
+      <div class="row subsection">
+        <ol>
+          <li>
+            Go to the "<strong>New train job</strong>" page (linked in the nav bar above). Enter parameters for where the training data is, and what training parameters to use. You will be taken to the "Finalize job" page.
+          </li>
+          <li>
+            On the "<strong>Finalize job</strong>" page look over the parameters you chose, and click "Finalize job" if they are correct. You will be taken to the "Check progress" page.
+          </li>
+          <li>
+            On the "<strong>Check progress</strong>" page, you can monitor the progress of your job. If you are first in line, your job will start immediately. If not, it will
+            start as soon as all the jobs ahead of you finsih. You do NOT need to keep the browser tab open - closing it will not affect your job.
+            If you wish, you can bookmark the "Check progress" page so you can come back to it later. That page will remain connected to your job until one day after the job
+            terminates.
+          </li>
+          <li>
+              As your job progresses, the "<strong>Check progress</strong>" page will show statistics, as well as a preview of inter-epoch sample validation results.
+              If you wish to change your job's parameters, you can always terminate the job from the "Check progress" screen and resubmit a new job,
+              but your new job will go to the back of the queue if there are other jobs waiting.
+          </li>
+          <li>
+            When your job is done, you should be able to find and select the newly trained network in the drop-down list in the "New seg job" page.
           </li>
         </ol>
       </div>
