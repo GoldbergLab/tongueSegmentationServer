@@ -1,5 +1,6 @@
-import keras
+from keras.backend import clear_session
 from keras.models import load_model #ImageDataGenerator
+from keras.callbacks import Callback as keras_callback
 import numpy as np
 from static.models.unet_model import unet
 from scipy.io import loadmat
@@ -46,7 +47,7 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
 
     # Reset whatever buffers or saved state exists...not sure exactly what that consists of.
     # This may not actually work? Word is you have to restart whole jupyter server to get this to work.
-    keras.clear_session()
+    clear_session()
 
     # Load training data
     print('Loading images and masks...')
@@ -107,7 +108,7 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
             callbacks=callback_list
         )
 
-class TrainingProgressCallback(keras.callbacks.Callback):
+class TrainingProgressCallback(keras_callback):
     def __init__(self):
         super(TrainingProgressCallback, self).__init__()
         self.logs = []
