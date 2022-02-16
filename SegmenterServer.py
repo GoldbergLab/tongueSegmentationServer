@@ -822,7 +822,6 @@ class SegmentationServer:
         return self.formatHTML(
             environ,
             'html/FinalizeTrainJob.html',
-            videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
             startNetworkName=startNetworkNameText,
             newNetworkName=newNetworkName,
             batchSize=batchSize,
@@ -1012,6 +1011,7 @@ class SegmentationServer:
                 break;
 
     def updateJobProgress(self, jobNum):
+        # Retrieve and record any progress reports sent by the specified job
         if jobNum in self.jobQueue and self.jobQueue[jobNum]['job'] is not None:
             while True:
                 try:
@@ -1020,12 +1020,22 @@ class SegmentationServer:
                     self.jobQueue[jobNum]['log'].extend(progress['log'])
                     # Get updated exit code from job
                     self.jobQueue[jobNum]['exitCode'] = progress['exitCode']
-                    # Get the path to the last video the job has completed
-                    if progress['lastCompletedVideoPath'] is not None:
-                        self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
-                    # Get the time when the last video started processing
-                    if progress['lastProcessingStartTime'] is not None:
-                        self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                    if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                        # Get the path to the last video the job has completed
+                        if progress['lastCompletedVideoPath'] is not None:
+                            self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
+                        # Get the time when the last video started processing
+                        if progress['lastProcessingStartTime'] is not None:
+                            self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                    elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                        # Get the last completed epoch number
+                        if progress['lastEpochNum'] is not None:
+                            self.jobQueue[jobNum]['lastEpochNum'] = progress['lastCompletedVideoPath']
+                        # Get the time when the last epoch completed
+                        if progress['lastEpochTime'] is not None:
+                            self.jobQueue[jobNum]['times'].append(progress['lastEpochTime'])
+                    else:
+                        raise ValueError('Unknown type: {t}'.format(t=self.jobQueue[jobNum]['type']))
                 except queue.Empty:
                     # Got all progress
                     break
@@ -1076,62 +1086,7 @@ class SegmentationServer:
         with preview.open('rb') as f:
             return [f.read()]
 
-    def checkProgressHandler(self, environ, start_fn):
-        # Get jobNum from URL
-        jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        allJobNums = self.getJobNums()
-#        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
-        if jobNum not in allJobNums:
-            # Invalid jobNum
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return self.formatError(
-                environ,
-                errorTitle='Invalid job ID',
-                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
-                linkURL='/',
-                linkAction='create a new job'
-                )
-        if self.jobQueue[jobNum]['job'] is not None:
-            # Job has started. Check its state
-            jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
-            jobStateName = ServerJob.stateList[jobState]
-            # Get all pending updates on its progress
-            self.updateJobProgress(jobNum)
-        else:
-            # Job has not started
-            jobStateName = "ENQUEUED"
-
-        # Get some parameters about job ready for display
-        binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
-        maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
-        segSpec = self.jobQueue[jobNum]['segSpec']
-        topNetworkName = segSpec.getNetworkPath('Top').name
-        botNetworkName = segSpec.getNetworkPath('Bot').name
-        topOffset = segSpec.getYOffset('Top')
-        topHeight = segSpec.getHeight('Top')
-        botHeight = segSpec.getHeight('Bot')
-        topWidth = segSpec.getWidth('Top')
-        botWidth = segSpec.getWidth('Bot')
-        if topHeight is None:
-            topHeightText = "Use network size"
-        else:
-            topHeightText = str(topHeight)
-        if botHeight is None:
-            botHeightText = "Use network size"
-        else:
-            botHeightText = str(botHeight)
-
-        if topWidth is None:
-            topWidthText = "Use network size"
-        else:
-            topWidthText = str(topWidth)
-        if botWidth is None:
-            botWidthText = "Use network size"
-        else:
-            botWidthText = str(botWidth)
-
-        topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
-        botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
+    def getJobTimeStats(self, jobNum):
 
         creationTime = ""
         startTime = "Not started yet"
@@ -1143,9 +1098,6 @@ class SegmentationServer:
         if self.jobQueue[jobNum]['completionTime'] is not None:
             completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).strftime(HTML_DATE_FORMAT)
 
-        numVideos = len(self.jobQueue[jobNum]['videoList'])
-        numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-        percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
@@ -1180,10 +1132,9 @@ class SegmentationServer:
             timeConfIntStr = "Unknown"
             estimatedTimeRemaining = "Unknown"
 
-        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']])
-        if len(completedVideoListHTML.strip()) == 0:
-            completedVieoListHTML = "None"
+        return creationTime, startTime, completionTime, meanTime, meanTimeStr, timeConfInt, timeConfIntStr, estimatedTimeRemaining
 
+    def getJobStateText(self, jobNum):
         exitCode = self.jobQueue[jobNum]['exitCode']
         stateDescription = ''
         processDead = "true"
@@ -1192,6 +1143,7 @@ class SegmentationServer:
             if not self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+                epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
                 if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
                     stateDescription = 'This job has been cancelled.'
@@ -1199,12 +1151,14 @@ class SegmentationServer:
                     exitCodePhrase = 'is enqueued, but not started.'
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
+                                        and <strong>{epochsAhead} total epochs</strong> \
                                         remaining. Your job will be enqueued to start as soon \
-                                        as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
+                                        as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead, epochsAhead=epochsAhead)
                 else:
                     exitCodePhrase = 'has not been confirmed yet. <form action="/confirmJob/{jobID}"><input class="button button-primary" type="submit" value="Confirm and enqueue job" /></form>'.format(jobID=jobNum)
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
+                                        and <strong>{epochsAhead} total epochs</strong> \
                                         remaining. Your job will be enqueued after you confirm it.'
             else:
                 if self.isCancelled(jobNum):
@@ -1222,59 +1176,186 @@ class SegmentationServer:
         else:
             exitCodePhrase = 'is in an unknown exit code state...'
 
-        logHTML = self.formatLogHTML(self.jobQueue[jobNum]['log'])
+        return processDead, exitCodePhrase, stateDescription
 
-        owner = self.jobQueue[jobNum]['owner']
+    def checkProgressHandler(self, environ, start_fn):
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-1])
+        allJobNums = self.getJobNums()
+#        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
+        if jobNum not in allJobNums:
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job ID',
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
+                linkURL='/',
+                linkAction='create a new job'
+                )
+
+        jobEntry = self.jobQueue[jobNum]
+
+        if jobEntry['job'] is not None:
+            # Job has started. Check its state
+            jobState = jobEntry['job'].publishedStateVar.value
+            jobStateName = ServerJob.stateList[jobState]
+            # Get all pending updates on its progress
+            self.updateJobProgress(jobNum)
+        else:
+            # Job has not started
+            jobStateName = "ENQUEUED"
+
+        creationTime, startTime, completionTime, meanTime, meanTimeStr, timeConfInt, timeConfIntStr, estimatedTimeRemaining = self.getJobTimeStats(jobNum)
+
+        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in jobEntry['completedVideoList']])
+        if len(completedVideoListHTML.strip()) == 0:
+            completedVieoListHTML = "None"
+
+        processDead, exitCodePhrase, stateDescription = self.getJobStateText(jobNum)
+
+        logHTML = self.formatLogHTML(jobEntry['log'])
+
+        owner = jobEntry['owner']
         if owner == getUsername(environ):
             owner = owner + " (you)"
 
-        generatePreview = self.jobQueue[jobNum]['generatePreview']
+        generatePreview = jobEntry['generatePreview']
         if not generatePreview:
             hidePreview = "hidden"
         else:
             hidePreview = ""
 
-        skipExisting = self.jobQueue[jobNum]['skipExisting']
+        if jobEntry['type'] == SEGMENT_TYPE:
+            # Get some parameters about job ready for display
+            binaryThreshold = jobEntry['binaryThreshold']
+            maskSaveDirectory = jobEntry['maskSaveDirectory']
+            segSpec = jobEntry['segSpec']
+            topNetworkName = segSpec.getNetworkPath('Top').name
+            botNetworkName = segSpec.getNetworkPath('Bot').name
+            topOffset = segSpec.getYOffset('Top')
+            topHeight = segSpec.getHeight('Top')
+            botHeight = segSpec.getHeight('Bot')
+            topWidth = segSpec.getWidth('Top')
+            botWidth = segSpec.getWidth('Bot')
+            if topHeight is None:
+                topHeightText = "Use network size"
+            else:
+                topHeightText = str(topHeight)
+            if botHeight is None:
+                botHeightText = "Use network size"
+            else:
+                botHeightText = str(botHeight)
 
-        start_fn('200 OK', [('Content-Type', 'text/html')])
-        with open('html/CheckProgress.html', 'r') as f: htmlTemplate = f.read()
-        return self.formatHTML(
-            environ,
-            'html/CheckProgress.html',
-            meanTime=meanTimeStr,
-            confInt=timeConfIntStr,
-            videoList=completedVideoListHTML,
-            jobStateName=jobStateName,
-            jobNum=jobNum,
-            estimatedTimeRemaining=estimatedTimeRemaining,
-            jobName=self.jobQueue[jobNum]['jobName'],
-            owner=owner,
-            creationTime=creationTime,
-            startTime=startTime,
-            completionTime=completionTime,
-            exitCodePhrase=exitCodePhrase,
-            logHTML=logHTML,
-            percentComplete=percentComplete,
-            numComplete=numCompletedVideos,
-            numTotal=numVideos,
-            stateDescription=stateDescription,
-            processDead=processDead,
-            binaryThreshold=binaryThreshold,
-            maskSaveDirectory=maskSaveDirectory,
-            topNetworkName=topNetworkName,
-            botNetworkName=botNetworkName,
-            topOffset=topOffset,
-            topHeight=topHeightText,
-            botHeight=botHeightText,
-            topWidth=topWidthText,
-            botWidth=botWidthText,
-            generatePreview=generatePreview,
-            skipExisting=skipExisting,
-            topMaskPreviewSrc=topMaskPreviewSrc,
-            botMaskPreviewSrc=botMaskPreviewSrc,
-            autoReloadInterval=AUTO_RELOAD_INTERVAL,
-            hidePreview=hidePreview
-        )
+            if topWidth is None:
+                topWidthText = "Use network size"
+            else:
+                topWidthText = str(topWidth)
+            if botWidth is None:
+                botWidthText = "Use network size"
+            else:
+                botWidthText = str(botWidth)
+
+            topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
+            botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
+
+            numVideos = len(jobEntry['videoList'])
+            numCompletedVideos = len(jobEntry['completedVideoList'])
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+
+            skipExisting = jobEntry['skipExisting']
+
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            # with open('html/CheckSegmentationProgress.html', 'r') as f: htmlTemplate = f.read()
+            return self.formatHTML(
+                environ,
+                'html/CheckSegmentationProgress.html',
+                meanTime=meanTimeStr,
+                confInt=timeConfIntStr,
+                videoList=completedVideoListHTML,
+                jobStateName=jobStateName,
+                jobNum=jobNum,
+                estimatedTimeRemaining=estimatedTimeRemaining,
+                jobName=jobEntry['jobName'],
+                owner=owner,
+                creationTime=creationTime,
+                startTime=startTime,
+                completionTime=completionTime,
+                exitCodePhrase=exitCodePhrase,
+                logHTML=logHTML,
+                percentComplete=percentComplete,
+                numComplete=numCompletedVideos,
+                numTotal=numVideos,
+                stateDescription=stateDescription,
+                processDead=processDead,
+                binaryThreshold=binaryThreshold,
+                maskSaveDirectory=maskSaveDirectory,
+                topNetworkName=topNetworkName,
+                botNetworkName=botNetworkName,
+                topOffset=topOffset,
+                topHeight=topHeightText,
+                botHeight=botHeightText,
+                topWidth=topWidthText,
+                botWidth=botWidthText,
+                generatePreview=generatePreview,
+                skipExisting=skipExisting,
+                topMaskPreviewSrc=topMaskPreviewSrc,
+                botMaskPreviewSrc=botMaskPreviewSrc,
+                autoReloadInterval=AUTO_RELOAD_INTERVAL,
+                hidePreview=hidePreview
+            )
+        elif jobEntry['type'] == TRAIN_TYPE:
+
+            if jobEntry['startNetworkPath'] is None:
+                startNetworkNameText = "Randomized (naive) network"
+            else:
+                startNetworkNameText = jobEntry['startNetworkPath'].name
+            startNetworkNameText = jobEntry['newNetworkPath'].name
+            batchSizeText = jobEntry['batchSize']
+            numEpochsText = jobEntry['numEpochs']
+
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            return self.formatHTML(
+                environ,
+                'html/CheckTrainProgress.html',
+                epochsComplete=numEpochsComplete,
+                epochsTotal=numEpochs,
+
+                startNetworkName=startNetworkNameText,
+                newNetworkName=newNetworkName,
+                batchSize=batchSizeText,
+                numEpochs=numEpochsText,
+                augmentData=augmentDataText,
+                rotationRange=augmentationParameters['rotationRange'],
+                widthShiftRange=augmentationParameters['widthShiftRange'],
+                heightShiftRange=augmentationParameters['heightShiftRange'],
+                zoomRange=augmentationParameters['zoomRange'],
+                horizontalFlip=augmentationParameters['horizontalFlip'],
+                verticalFlip=augmentationParameters['verticalFlip'],
+
+                meanTime=meanTimeStr,
+                confInt=timeConfIntStr,
+                jobStateName=jobStateName,
+                jobNum=jobNum,
+                estimatedTimeRemaining=estimatedTimeRemaining,
+                jobName=jobEntry['jobName'],
+                owner=owner,
+                creationTime=creationTime,
+                startTime=startTime,
+                completionTime=completionTime,
+                exitCodePhrase=exitCodePhrase,
+                logHTML=logHTML,
+                percentComplete=percentComplete,
+                stateDescription=stateDescription,
+                processDead=processDead,
+                generatePreview=generatePreview,
+                skipExisting=skipExisting,
+                autoReloadInterval=AUTO_RELOAD_INTERVAL,
+                hidePreview=hidePreview
+            )
+        else:
+            raise ValueError('Unrecognized job type: {t}'.format(t=self.jobQueue[jobNum]['type']))
+
 
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
