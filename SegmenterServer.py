@@ -1584,12 +1584,20 @@ class SegmentationServer:
         for jobNum in allJobNums:
             state = self.getHumanReadableJobState(jobNum)
 
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+            if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                numTasks = len(self.jobQueue[jobNum]['videoList'])
+                numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
+                jobType = 'Segment'
+            elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                numTasks = self.jobQueue[jobNum]['numEpochs']
+                numCompletedTasks = self.jobQueue[jobNum]['lastEpochNumber']
+                jobType = 'Segment'
+
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
 
             jobEntries.append(jobEntryTemplate.format(
-                numVideos = numVideos,
+                numTasks = numVideos,
+                jobType = jobType,
                 numCompletedVideos = numCompletedVideos,
                 percentComplete = percentComplete,
                 jobNum=jobNum,
