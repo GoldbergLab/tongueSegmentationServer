@@ -1424,13 +1424,21 @@ class SegmentationServer:
         for jobNum in self.getJobNums(owner=user):
             state = self.getHumanReadableJobState(jobNum)
 
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum):
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                jobType = 'Train'
+            elif self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                jobType = 'Segment'
+            else:
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
 
             jobEntries.append(jobEntryTemplate.format(
                 percentComplete=percentComplete,
                 jobNum=jobNum,
+                jobType=jobType,
+                numTasks=numTasks,
                 jobDescription=self.jobQueue[jobNum]['jobName'],
                 state=state
             ))
@@ -1568,6 +1576,17 @@ class SegmentationServer:
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
         )
 
+    def getJobProgress(self, jobNum):
+        if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+            numTasks = len(self.jobQueue[jobNum]['videoList'])
+            numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
+        elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+            numTasks = self.jobQueue[jobNum]['numEpochs']
+            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNumber']
+        else:
+            raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
+        return numTasks, numCompletedTasks
+
     def serverManagementHandler(self, environ, start_fn):
         if not isAdmin(getUsername(environ)):
             # User is not authorized
@@ -1584,16 +1603,15 @@ class SegmentationServer:
         for jobNum in allJobNums:
             state = self.getHumanReadableJobState(jobNum)
 
-            if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
-                numTasks = len(self.jobQueue[jobNum]['videoList'])
-                numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
-                jobType = 'Segment'
-            elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
-                numTasks = self.jobQueue[jobNum]['numEpochs']
-                numCompletedTasks = self.jobQueue[jobNum]['lastEpochNumber']
-                jobType = 'Segment'
-
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum):
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                jobType = 'Train'
+            elif self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                jobType = 'Segment'
+            else:
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
 
             jobEntries.append(jobEntryTemplate.format(
                 numTasks = numVideos,
