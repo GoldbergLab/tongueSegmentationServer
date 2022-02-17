@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import logging
 from TongueSegmentation import segmentVideo
-from NetworkTraining import trainNetwork
+from NetworkTraining import trainNetwork, TrainingProgressCallback
 import copy
 import itertools
 import os
@@ -266,7 +266,7 @@ class TrainJob(ServerJob):
                         batch_size=self.batchSize,
                         epochs=self.numEpochs,
                         data_augmentation_parameters=self.augmentationParameters,
-                        epoch_progress_callback=self.endEpoch
+                        epoch_progress_callback=TrainingProgressCallback(self.endEpoch)
                     )
 
                     # self.sendProgress(currentVideo, processingStartTime)

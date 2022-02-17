@@ -1,6 +1,6 @@
 from keras.backend import clear_session
 from keras.models import load_model
-from keras.callbacks import Callback as keras_callback
+from keras.callbacks import ModelCheckpoint, Callback as keras_callback
 from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 from static.models.unet_model import unet
@@ -72,12 +72,12 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
         imgGen = ImageDataGenerator(**data_augmentation_parameters)
         maskGen = ImageDataGenerator(**data_augmentation_parameters)
 
-    if startNetworkName is None:
+    if trained_network_path is None:
         # Randomize new network structure using architecture in model.py file
         lickbot_net = unet(net_scale = 1)
     else:
         # Load previously trained network from a file
-        lickbot_net = load_model(startNetworkName)
+        lickbot_net = load_model(trained_network_path)
 
     # Instruct training algorithm to save best network to disk whenever an improved network is found.
     model_checkpoint = ModelCheckpoint(trained_network_path, monitor='loss',verbose=1, save_best_only=True)
@@ -110,13 +110,15 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
         )
 
 class TrainingProgressCallback(keras_callback):
-    def __init__(self):
+    def __init__(self, progressFunction):
         super(TrainingProgressCallback, self).__init__()
         self.logs = []
+        self.progressFunction = progressFunction
 
     def on_epoch_end(self, epoch, logs=None):
         self.logs.append(logs)
         keys = list(logs.keys())
+        self.progressFunction(epoch)
         print("End epoch {} of training; got log keys: {}".format(epoch, keys))
 
 def validateNetwork(trained_network_path, img=None, imgIterator=None, maskIterator=None):
