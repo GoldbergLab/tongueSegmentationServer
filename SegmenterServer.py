@@ -1703,16 +1703,15 @@ class SegmentationServer:
                 raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
             jobEntries.append(jobEntryTemplate.format(
-                numTasks = numVideos,
-                jobType = jobType,
-                numCompletedVideos = numCompletedVideos,
-                percentComplete = percentComplete,
                 jobNum=jobNum,
                 jobDescription = self.jobQueue[jobNum]['jobName'],
+                jobType=jobType,
+                owner=self.jobQueue[jobNum]['owner'],
+                percentComplete = percentComplete,
+                numTasks=numTasks,
                 confirmed=self.jobQueue[jobNum]['confirmed'],
                 cancelled=self.jobQueue[jobNum]['cancelled'],
-                state=state,
-                owner=self.jobQueue[jobNum]['owner']
+                state=state
             ))
         jobEntryTableBody = '\n'.join(jobEntries)
         start_fn('200 OK', [('Content-Type', 'text/html')])
