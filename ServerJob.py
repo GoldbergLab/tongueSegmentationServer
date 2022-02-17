@@ -206,7 +206,7 @@ class TrainJob(ServerJob):
                     lastEpochNum = 0
                     if self.verbose >= 3: self.log('Train job initialized!')
 #                    self.sendProgress(finishedVideoList, self.videoList, None, processingStartTime)
-                    self.sendProgress(lastEpochNum, self.lastEpochTime)
+                    self.sendProgress(lastEpochNum)
 
                     # CHECK FOR MESSAGES
                     try:
@@ -369,7 +369,7 @@ class TrainJob(ServerJob):
             lastState = state
             state = nextState
 
-        self.sendProgress(None, None)
+        self.sendProgress(None)
 
         clearQueue(self.msgQueue)
         if self.verbose >= 1: self.log("TrainJob process STOPPED")

@@ -49,7 +49,7 @@
                 <div class="three columns">Percent complete:</div><div class="nine columns"><strong>{percentComplete} %</strong></div>
               </div>
               <div class="row">
-                <div class="three columns">Number complete:</div><div class="nine columns"><strong>{numComplete}/{numTotal}</strong></div>
+                <div class="three columns"># of epochs complete:</div><div class="nine columns"><strong>{numEpochsComplete}/{numEpochsTotal}</strong></div>
               </div>
               <div class="row">
                 <div class="three columns">Estimated time remaining:</div><div class="nine columns"><strong>{estimatedTimeRemaining}</strong></div>
@@ -67,34 +67,30 @@
                 <div class="three columns">Job end time: </div><div class="nine columns"><strong>{completionTime}</strong></div>
               </div>
               <div class="row">
-                <div class="three columns">Chosen top neural network:</div><div class="nine columns"><strong>{topNetworkName}</strong></div>
+                <div class="three columns">Randomly augment data?</div><div class="nine columns"><strong>{augmentData}</strong></div>
               </div>
-              <div class="row">
-                <div class="three columns">Chosen bot neural network:</div><div class="nine columns"><strong>{botNetworkName}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Top mask vertical offset:</div><div class="nine columns"><strong>{topOffset}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Top mask height:</div><div class="nine columns"><strong>{topHeight}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Top mask width:</div><div class="nine columns"><strong>{topWidth}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Bottom mask height:</div><div class="nine columns"><strong>{botHeight}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Bottom mask width:</div><div class="nine columns"><strong>{botWidth}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Binary mask threshold:</div><div class="nine columns"><strong>{binaryThreshold}</strong></div>
+              <div id="augmentParams">
+                <div class="row">
+                  <div class="three columns">Rotation range:</div><div class="nine columns"><strong>{rotationRange}</strong></div>
+                </div>
+                <div class="row">
+                  <div class="three columns">Width shift range:</div><div class="nine columns"><strong>{widthShiftRange}</strong></div>
+                </div>
+                <div class="row">
+                  <div class="three columns">Height shift range:</div><div class="nine columns"><strong>{heightShiftRange}</strong></div>
+                </div>
+                <div class="row">
+                  <div class="three columns">Zoom range:</div><div class="nine columns"><strong>{zoomRange}</strong></div>
+                </div>
+                <div class="row">
+                  <div class="three columns">Horizontal flip?</div><div class="nine columns"><strong>{horizontalFlip}</strong></div>
+                </div>
+                <div class="row">
+                  <div class="three columns">Vertical flip?</div><div class="nine columns"><strong>{verticalFlip}</strong></div>
+                </div>
               </div>
               <div class="row">
                 <div class="three columns">Generate preview:</div><div class="nine columns"><strong>{generatePreview}</strong></div>
-              </div>
-              <div class="row">
-                <div class="three columns">Skip existing masks:</div><div class="nine columns"><strong>{skipExisting}</strong></div>
               </div>
               <div class="row">
                 <div class="three columns">Job state: </div><div class="nine columns"><strong>{jobStateName}</strong></div>
@@ -111,12 +107,6 @@
               <div class="row">
                 <div>
                   <details>
-                    <summary>List of completed video files:</summary>
-                      <ul>
-                        {videoList}
-                      </ul>
-                  </details>
-                  <details>
                     <summary>Debug output:</summary>
                       {logHTML}
                   </details>
@@ -124,26 +114,15 @@
               </div>
             </section>
             <section class="four columns" {hidePreview}>
-              <div class="container">
-                <div class="row">
-                  <h4>Latest output preview:</h4>
-                </div>
-                <div class="row" style="margin-bottom: 5px">
-                  <div class="four columns" style="font-size: 0.75em; text-align: right;">Top masks:</div>
-                  <div class="eight columns">
-                    <img class="u-max-full-width" src="{topMaskPreviewSrc}">
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="four columns" style="font-size: 0.75em; text-align: right;">Bottom masks:</div>
-                  <div class="eight columns">
-                    <img class="u-max-full-width" src="{botMaskPreviewSrc}">
-                  </div>
-                </div>
-              </div>
+              <!-- Preview goes here -->
             </section>
           </div>
         </div>
       </div>
     </body>
+    <script>
+      if ({augmentData} == 'No') {{
+        document.getElementById('augmentData').style.display = 'none';
+      }}
+    </script>
 </html>

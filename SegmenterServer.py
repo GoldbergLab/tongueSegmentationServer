@@ -13,7 +13,7 @@ import urllib
 import requests
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
-from ServerJob import SegmentationJob, TrainJob
+from ServerJob import ServerJob, SegmentationJob, TrainJob
 from TongueSegmentation import SegSpec
 from NetworkTraining import createDataAugmentationParameters
 import queue
@@ -56,6 +56,9 @@ def initializeLogger():
     return logger
 
 logger = initializeLogger()
+
+TRAIN_TYPE = 'train'
+SEGMENT_TYPE = 'segment'
 
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5', '.hdf5']
 NETWORKS_SUBFOLDER = 'networks'
@@ -491,7 +494,7 @@ class SegmentationServer:
         completedVideosAhead = 0
         queuedVideosAhead = 0
         for jobNum in self.jobQueue:
-            if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+            if self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
                 # Job is a segmentation job, not a training job.
                 if beforeJobNum is not None and jobNum == beforeJobNum:
                     # This is the specified job num - stop, don't count any more
@@ -505,7 +508,7 @@ class SegmentationServer:
     def countEpochsRemaining(self, beforeJobNum=None):
         epochsAhead = 0
         for jobNum in self.jobQueue:
-            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+            if self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
                 # Job is a training job, not a segmentation job.
                 if beforeJobNum is not None and jobNum == beforeJobNum:
                     # This is the specified job num - stop, don't count any more
@@ -706,26 +709,33 @@ class SegmentationServer:
                 startNetworkPath = NETWORKS_FOLDER / startNetworkName
             newNetworkName = postData['newNetworkName'][0]
             newNetworkPath = NETWORKS_FOLDER / newNetworkName
-            trainingDataPath = postData['trainingDataPath'][0]
+            trainingDataPath = Path(postData['trainingDataPath'][0])
             pathStyle = postData['pathStyle'][0]
             batchSize = int(postData['batchSize'][0])
             numEpochs = int(postData['numEpochs'][0])
             if 'augmentData' in postData:
                 augmentData = True
+                rotationRange = float(postData['rotationRange'][0])
+                widthShiftRange = float(postData['widthShiftRange'][0])
+                heightShiftRange = float(postData['heightShiftRange'][0])
+                zoomRange = float(postData['zoomRange'][0])
+                if 'horizontalFlip' in postData:
+                    horizontalFlip = True
+                else:
+                    horizontalFlip = False
+                if 'verticalFlip' in postData:
+                    verticalFlip = True
+                else:
+                    verticalFlip = False
             else:
                 augmentData = False
-            rotationRange = float(postData['rotationRange'][0])
-            widthShiftRange = float(postData['widthShiftRange'][0])
-            heightShiftRange = float(postData['heightShiftRange'][0])
-            zoomRange = float(postData['zoomRange'][0])
-            if 'horizontalFlip' in postData:
-                horizontalFlip = True
-            else:
-                horizontalFlip = False
-            if 'verticalFlip' in postData:
-                verticalFlip = True
-            else:
-                verticalFlip = False
+                rotationRange = None
+                widthShiftRange = None
+                heightShiftRange = None
+                zoomRange = None
+                horizontalFlip = None
+                verticalFlip = None
+
             if 'generateValidationPreview' in postData:
                 generateValidationPreview = True
             else:
@@ -829,12 +839,12 @@ class SegmentationServer:
             batchSize=batchSize,
             numEpochs=numEpochs,
             augmentData=augmentDataText,
-            rotationRange=augmentationParameters['rotationRange'],
-            widthShiftRange=augmentationParameters['widthShiftRange'],
-            heightShiftRange=augmentationParameters['heightShiftRange'],
-            zoomRange=augmentationParameters['zoomRange'],
-            horizontalFlip=augmentationParameters['horizontalFlip'],
-            verticalFlip=augmentationParameters['verticalFlip'],
+            rotationRange=augmentationParameters['rotation_range'],
+            widthShiftRange=augmentationParameters['width_shift_range'],
+            heightShiftRange=augmentationParameters['height_shift_range'],
+            zoomRange=augmentationParameters['zoom_range'],
+            horizontalFlip=augmentationParameters['horizontal_flip'],
+            verticalFlip=augmentationParameters['vertical_flip'],
             generatePreview=generateValidationPreview,
             jobID=jobNum,
             jobName=jobName,
@@ -1022,14 +1032,14 @@ class SegmentationServer:
                     self.jobQueue[jobNum]['log'].extend(progress['log'])
                     # Get updated exit code from job
                     self.jobQueue[jobNum]['exitCode'] = progress['exitCode']
-                    if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+                    if self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
                         # Get the path to the last video the job has completed
                         if progress['lastCompletedVideoPath'] is not None:
                             self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
                         # Get the time when the last video started processing
                         if progress['lastProcessingStartTime'] is not None:
                             self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
-                    elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+                    elif self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
                         # Get the last completed epoch number
                         if progress['lastEpochNum'] is not None:
                             self.jobQueue[jobNum]['lastEpochNum'] = progress['lastEpochNum']
@@ -1037,7 +1047,7 @@ class SegmentationServer:
                         if progress['lastEpochTime'] is not None:
                             self.jobQueue[jobNum]['times'].append(progress['lastEpochTime'])
                     else:
-                        raise ValueError('Unknown type: {t}'.format(t=self.jobQueue[jobNum]['type']))
+                        raise ValueError('Unknown type: {t}'.format(t=self.jobQueue[jobNum]['jobType']))
                 except queue.Empty:
                     # Got all progress
                     break
@@ -1210,11 +1220,10 @@ class SegmentationServer:
 
         creationTime, startTime, completionTime, meanTime, meanTimeStr, timeConfInt, timeConfIntStr, estimatedTimeRemaining = self.getJobTimeStats(jobNum)
 
-        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in jobEntry['completedVideoList']])
-        if len(completedVideoListHTML.strip()) == 0:
-            completedVieoListHTML = "None"
-
         processDead, exitCodePhrase, stateDescription = self.getJobStateText(jobNum)
+
+        numTasks, numCompletedTasks = self.getJobProgress(jobNum)
+        percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
 
         logHTML = self.formatLogHTML(jobEntry['log'])
 
@@ -1228,8 +1237,12 @@ class SegmentationServer:
         else:
             hidePreview = ""
 
-        if jobEntry['type'] == SEGMENT_TYPE:
+        if jobEntry['jobType'] == SEGMENT_TYPE:
             # Get some parameters about job ready for display
+            completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in jobEntry['completedVideoList']])
+            if len(completedVideoListHTML.strip()) == 0:
+                completedVieoListHTML = "None"
+
             binaryThreshold = jobEntry['binaryThreshold']
             maskSaveDirectory = jobEntry['maskSaveDirectory']
             segSpec = jobEntry['segSpec']
@@ -1261,10 +1274,6 @@ class SegmentationServer:
             topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
             botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
 
-            numVideos = len(jobEntry['videoList'])
-            numCompletedVideos = len(jobEntry['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
-
             skipExisting = jobEntry['skipExisting']
 
             start_fn('200 OK', [('Content-Type', 'text/html')])
@@ -1286,8 +1295,8 @@ class SegmentationServer:
                 exitCodePhrase=exitCodePhrase,
                 logHTML=logHTML,
                 percentComplete=percentComplete,
-                numComplete=numCompletedVideos,
-                numTotal=numVideos,
+                numComplete=numCompletedTasks,
+                numTotal=numTasks,
                 stateDescription=stateDescription,
                 processDead=processDead,
                 binaryThreshold=binaryThreshold,
@@ -1306,41 +1315,41 @@ class SegmentationServer:
                 autoReloadInterval=AUTO_RELOAD_INTERVAL,
                 hidePreview=hidePreview
             )
-        elif jobEntry['type'] == TRAIN_TYPE:
+        elif jobEntry['jobType'] == TRAIN_TYPE:
 
             if jobEntry['startNetworkPath'] is None:
                 startNetworkNameText = "Randomized (naive) network"
             else:
                 startNetworkNameText = jobEntry['startNetworkPath'].name
-            startNetworkNameText = jobEntry['newNetworkPath'].name
-            batchSizeText = jobEntry['batchSize']
-            numEpochsText = jobEntry['numEpochs']
+            if jobEntry['augmentData']:
+                augmentDataText = 'Yes'
+            else:
+                augmentDataText = 'No'
+
+            augmentationParameters = jobEntry['augmentationParameters']
 
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return self.formatHTML(
                 environ,
                 'html/CheckTrainProgress.html',
-                epochsComplete=numEpochsComplete,
-                epochsTotal=numEpochs,
-
+                numEpochsComplete=numCompletedTasks,
+                numEpochsTotal=numTasks,
                 startNetworkName=startNetworkNameText,
-                newNetworkName=newNetworkName,
-                batchSize=batchSizeText,
-                numEpochs=numEpochsText,
+                newNetworkName=jobEntry['newNetworkPath'].name,
+                batchSize=jobEntry['batchSize'],
                 augmentData=augmentDataText,
-                rotationRange=augmentationParameters['rotationRange'],
-                widthShiftRange=augmentationParameters['widthShiftRange'],
-                heightShiftRange=augmentationParameters['heightShiftRange'],
-                zoomRange=augmentationParameters['zoomRange'],
-                horizontalFlip=augmentationParameters['horizontalFlip'],
-                verticalFlip=augmentationParameters['verticalFlip'],
-
+                rotationRange=augmentationParameters['rotation_range'],
+                widthShiftRange=augmentationParameters['width_shift_range'],
+                heightShiftRange=augmentationParameters['height_shift_range'],
+                zoomRange=augmentationParameters['zoom_range'],
+                horizontalFlip=augmentationParameters['horizontal_flip'],
+                verticalFlip=augmentationParameters['vertical_flip'],
                 meanTime=meanTimeStr,
                 confInt=timeConfIntStr,
                 jobStateName=jobStateName,
+                jobName=jobEntry['jobName'],
                 jobNum=jobNum,
                 estimatedTimeRemaining=estimatedTimeRemaining,
-                jobName=jobEntry['jobName'],
                 owner=owner,
                 creationTime=creationTime,
                 startTime=startTime,
@@ -1351,12 +1360,11 @@ class SegmentationServer:
                 stateDescription=stateDescription,
                 processDead=processDead,
                 generatePreview=generatePreview,
-                skipExisting=skipExisting,
                 autoReloadInterval=AUTO_RELOAD_INTERVAL,
                 hidePreview=hidePreview
             )
         else:
-            raise ValueError('Unrecognized job type: {t}'.format(t=self.jobQueue[jobNum]['type']))
+            raise ValueError('Unrecognized job type: {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
 
     def rootHandler(self, environ, start_fn):
@@ -1505,15 +1513,15 @@ class SegmentationServer:
         for jobNum in self.getJobNums(owner=user):
             state = self.getHumanReadableJobState(jobNum)
 
-            numTasks, numCompletedTasks = self.getJobProgress(jobNum):
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum)
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
 
-            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+            if self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
                 jobType = 'Train'
-            elif self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+            elif self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
                 jobType = 'Segment'
             else:
-                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
             jobEntries.append(jobEntryTemplate.format(
                 percentComplete=percentComplete,
@@ -1658,14 +1666,14 @@ class SegmentationServer:
         )
 
     def getJobProgress(self, jobNum):
-        if self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+        if self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
             numTasks = len(self.jobQueue[jobNum]['videoList'])
             numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
-        elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+        elif self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
             numTasks = self.jobQueue[jobNum]['numEpochs']
             numCompletedTasks = self.jobQueue[jobNum]['lastEpochNumber']
         else:
-            raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
+            raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
         return numTasks, numCompletedTasks
 
     def serverManagementHandler(self, environ, start_fn):
@@ -1684,15 +1692,15 @@ class SegmentationServer:
         for jobNum in allJobNums:
             state = self.getHumanReadableJobState(jobNum)
 
-            numTasks, numCompletedTasks = self.getJobProgress(jobNum):
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum)
             percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
 
-            if self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
+            if self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
                 jobType = 'Train'
-            elif self.jobQueue[jobNum]['type'] == SEGMENT_TYPE:
+            elif self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
                 jobType = 'Segment'
             else:
-                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['type']))
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
             jobEntries.append(jobEntryTemplate.format(
                 numTasks = numVideos,
