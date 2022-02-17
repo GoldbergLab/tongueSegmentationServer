@@ -1,5 +1,6 @@
 import keras
-from keras.models import load_model #ImageDataGenerator
+from keras.models import load_model
+from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 from static.models.unet_model import unet
 from scipy.io import loadmat

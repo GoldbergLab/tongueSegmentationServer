@@ -1032,7 +1032,7 @@ class SegmentationServer:
                     elif self.jobQueue[jobNum]['type'] == TRAIN_TYPE:
                         # Get the last completed epoch number
                         if progress['lastEpochNum'] is not None:
-                            self.jobQueue[jobNum]['lastEpochNum'] = progress['lastCompletedVideoPath']
+                            self.jobQueue[jobNum]['lastEpochNum'] = progress['lastEpochNum']
                         # Get the time when the last epoch completed
                         if progress['lastEpochTime'] is not None:
                             self.jobQueue[jobNum]['times'].append(progress['lastEpochTime'])
