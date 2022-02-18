@@ -2,7 +2,8 @@
 <head>
   {headLinksHTML}
   <script>
-    function updateAugmentParamVisibility(augmentCheck) {{
+    function updateAugmentParamVisibility() {{
+        var augmentCheck = document.getElementByID("augmentData");
         var augmentParams = document.getElementById("augmentParams");
         augmentParams.style.display = augmentCheck.checked ? "block" : "none";
     }}
@@ -20,7 +21,7 @@
   <div class="section">
     <div class="container">
       <div class="row">
-        <h4 class="three columns"
+        <h4 class="nine columns"
             aria-label="Create a network training job.
               Once all jobs ahead in line are done, your job will automatically start.
               You do not need to keep the browser window open - it will run independently."
@@ -140,7 +141,7 @@
               data-balloon-length="fit">
             Randomly augment training data?
           </label>
-          <input class="two columns large-checkbox" type="checkbox" id="augmentData" name="augmentData" onclick="updateAugmentParamVisibility(this)" checked>
+          <input class="two columns large-checkbox" type="checkbox" id="augmentData" name="augmentData" onclick="updateAugmentParamVisibility()" checked>
         </div>
 
         <div id="augmentParams">
@@ -245,5 +246,5 @@
       </form>
     </div>
   </div>
-</body>
+</body onload="updateAugmentParamVisibility()">
 </html>
