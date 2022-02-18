@@ -9,11 +9,9 @@
     {netTime}
   </td>
   <td>
-    <form action="/manageNetworks/rename/{networkName}">
-        <input class="button button-primary" type="submit" value="Rename Network" />
-    </form>
+    <input class="button button-primary" type="submit" value="Rename Network" onclick="renameNetwork('{netName}')"/>
   </td>
   <td>
-    <input class="button button-warning" type="button" value="Remove Network" onclick="" />
+    <input class="button button-warning" type="button" value="Remove Network" onclick="removeNetwork('{netName}')" />
   </td>
 </tr>

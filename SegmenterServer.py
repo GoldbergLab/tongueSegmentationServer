@@ -73,7 +73,7 @@ DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
 RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
 
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
-ROOT_PATH = Path(ROOT)
+ROOT_PATH = Path(ROOT).resolve()
 NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
 REMOVED_NETWORKS_FOLDER = NETWORKS_FOLDER / REMOVED_NETWORKS_SUBFOLDER
 LOGS_FOLDER = ROOT_PATH / LOGS_SUBFOLDER
@@ -86,7 +86,6 @@ for reqFolder in REQUIRED_SUBFOLDERS:
         reqFolder.mkdir()
 
 AUTH_FILE = PRIVATE_FOLDER / AUTH_NAME
-
 
 def validPassword(password):
     valid = re.search('[a-zA-Z]', password) is not None and re.search('[0-9]', password) is not None and len(password) >= 6 and len(password) <= 15
@@ -252,9 +251,9 @@ class SegmentationServer:
             ('/finalizePassword',           self.finalizePasswordHandler),
             ('/reloadAuth',                 self.reloadAuthHandler),
             ('/train',                      self.trainHandler),
-            ('/manageNetworks',             self.networkManagementHandler),
-            ('/manageNetworks/rename/*',    self.networkRenameHandler),
-            ('/manageNetworks/remove/*',    self.networkRemoveHandler),
+            ('/networkManagement',          self.networkManagementHandler),
+            ('/networkManagement/rename/*', self.networkRenameHandler),
+            ('/networkManagement/remove/*', self.networkRemoveHandler),
             ('/',                           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
@@ -360,23 +359,36 @@ class SegmentationServer:
         #   the "deleted" subdirectory so they won't be listed any more.
         oldPath = NETWORKS_FOLDER / name
         newPath = REMOVED_NETWORKS_FOLDER / name
+        self.checkNetworkPathSafety(oldPath)
+        self.checkNetworkPathSafety(newPath)
         if oldPath.is_file():
+            logger.log(logging.INFO, 'Removing net by moving it from \"{oldPath}\" to \"{newPath}\"'.format(oldPath=oldPath, newPath=newPath))
             os.rename(oldPath, newPath)
+        else:
+            raise FileNotFoundError('Could not find file {f}'.format(name))
+
+    def checkNetworkPathSafety(self, path):
+        if (not NETWORKS_FOLDER in path.resolve().parents):
+            # Ensure both paths are children of NETWORKS_FOLDER, to prevent hijinks
+            raise OSError('Disallowed network path accessed: {p} - permission denied.'.format(p=path))
 
     def renameNeuralNetwork(self, oldName, newName, overwrite=False):
         # Rename a neural network within the neural networks directory.
         oldPath = NETWORKS_FOLDER / oldName
         newPath = NETWORKS_FOLDER / newName
+        self.checkNetworkPathSafety(oldPath)
+        self.checkNetworkPathSafety(newPath)
         if not oldPath.is_file():
             return False, 'Not a file'
         if newPath.is_file():
             if not overwrite:
                 return False, 'New name already exists'
         else:
+            logger.log(logging.INFO, 'Renaming net \"{oldPath}\" to \"{newPath}\"'.format(oldPath=oldPath, newPath=newPath))
             os.rename(oldPath, newPath)
             return True, None
 
-    def getNeuralNetworkList(self, includeTimestamps=False):
+    def getNeuralNetworkList(self, namesOnly=False, includeTimestamps=False):
         # Generate a list of available neural networks
         p = Path('.') / NETWORKS_SUBFOLDER
         networks = []
@@ -384,7 +396,10 @@ class SegmentationServer:
         for item in p.iterdir():
             if item.suffix in NEURAL_NETWORK_EXTENSIONS:
                 # This is a neural network file
-                networks.append(item.name)
+                if namesOnly:
+                    networks.append(item.name)
+                else:
+                    networks.append(item)
                 if includeTimestamps:
                     ts = item.stat().st_mtime
                     t = dt.datetime.fromtimestamp(ts)
@@ -1369,7 +1384,7 @@ class SegmentationServer:
 
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
-        neuralNetworkList = self.getNeuralNetworkList()
+        neuralNetworkList = self.getNeuralNetworkList(namesOnly=True)
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
@@ -1414,7 +1429,7 @@ class SegmentationServer:
 
     def trainHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving network training file')
-        existingNeuralNetworkList = [RANDOM_TRAINING_NETWORK_NAME] + self.getNeuralNetworkList()
+        existingNeuralNetworkList = [RANDOM_TRAINING_NETWORK_NAME] + self.getNeuralNetworkList(namesOnly=True)
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
@@ -1547,51 +1562,61 @@ class SegmentationServer:
             return self.unauthorizedHandler(environ, start_fn)
 
         # Get old and new names from URL
-        oldName, newName = int(environ['PATH_INFO'].split('/')[-2:])
-        oldPath = NETWORK_FOLDER / oldName
-        newPath = NETWORK_FOLDER / newName
-        if oldPath not in self.getNeuralNetworkList():
+        oldName, newName = environ['PATH_INFO'].split('/')[-2:]
+        if oldName not in self.getNeuralNetworkList(namesOnly=True):
             # Invalid name
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
             return self.formatError(
                 environ,
                 errorTitle='Cannot rename - network does not exist',
                 errorMsg='Something went wrong - could not find network {netName}'.format(netName=oldName),
-                linkURL='/manageNetworks',
+                linkURL='/networkManagement',
                 linkAction='go back to network management'
             )
-        elif newPath in self.getNeuralNetworkList():
+        elif newName in self.getNeuralNetworkList(namesOnly=True):
             # New name already exists
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
             return self.formatError(
                 environ,
                 errorTitle='Cannot rename - name already in use',
-                errorMsg='A network by the name \"{netName}\" already exists. Please rename or remove that network first.'.format(netName=newName),
-                linkURL='/manageNetworks',
+                errorMsg='A network by the name \"{newName}\" already exists. Please rename or remove that network first.'.format(netName=newName),
+                linkURL='/networkManagement',
                 linkAction='go back to network management'
             )
         else:
             # Valid network names - execute rename operation
-            logger.log(logging.INFO, 'Renaming net \"{oldName}\" to \"{newName}\"'.format(oldName=oldName, newName=newName))
             try:
-                renameNeuralNetwork(oldPath, newPath)
+                success, msg = self.renameNeuralNetwork(oldName, newName)
+                if not success:
+                    raise OSError(msg)
             except FileNotFoundError:
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
                 return self.formatError(
                     environ,
                     errorTitle='Error renaming file',
                     errorMsg='An error occurred when renaming \"{oldName}\" to \"{newName}\". Please check that the new name only contains valid filename characters.'.format(oldName=oldName, newName=newName),
-                    linkURL='/manageNetworks',
+                    linkURL='/networkManagement',
                     linkAction='go back to network management'
                 )
             except PermissionError:
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
                 return self.formatError(
                     environ,
                     errorTitle='Error renaming file',
                     errorMsg='A permission error occurred when renaming \"{oldName}\" to \"{newName}\". Please check the permissions for the network file.'.format(oldName=oldName, newName=newName),
-                    linkURL='/manageNetworks',
+                    linkURL='/networkManagement',
                     linkAction='go back to network management'
                 )
-        start_fn('303 See Other', [('Location','/manageNetworks')])
+            except OSError:
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='An error occurred when renaming \"{oldName}\" to \"{newName}\": {msg}'.format(oldName=oldName, newName=newName, msg=msg),
+                    linkURL='/networkManagement',
+                    linkAction='go back to network management'
+                )
+        start_fn('303 See Other', [('Location','/networkManagement')])
         return []
 
     def networkRemoveHandler(self, environ, start_fn):
@@ -1600,29 +1625,28 @@ class SegmentationServer:
             return self.unauthorizedHandler(environ, start_fn)
 
         # Get old and new names from URL
-        netName = int(environ['PATH_INFO'].split('/')[-1])
-        netPath = NETWORK_FOLDER / netName
-        if netPath not in self.getNeuralNetworkList():
+        netName = environ['PATH_INFO'].split('/')[-1]
+        if netName not in self.getNeuralNetworkList(namesOnly=True):
             # Invalid name
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return self.formatError(
                 environ,
                 errorTitle='Cannot remove - network does not exist',
                 errorMsg='Something went wrong - could not find network {netName}'.format(netName=netName),
-                linkURL='/manageNetworks',
+                linkURL='/networkManagement',
                 linkAction='go back to network management'
             )
         else:
             # Valid network names - execute remove operation
             logger.log(logging.INFO, 'Removing net \"{netName}\"'.format(netName=netName))
             try:
-                removeNeuralNetwork(netPath)
+                self.removeNeuralNetwork(netName)
             except FileNotFoundError:
                 return self.formatError(
                     environ,
                     errorTitle='Error renaming file',
-                    errorMsg='An error occurred when removing \"{oldName}\" - could not find network.'.format(netName=netName),
-                    linkURL='/manageNetworks',
+                    errorMsg='An error occurred when removing \"{netName}\" - could not find network.'.format(netName=netName),
+                    linkURL='/networkManagement',
                     linkAction='go back to network management'
                 )
             except PermissionError:
@@ -1630,10 +1654,10 @@ class SegmentationServer:
                     environ,
                     errorTitle='Error renaming file',
                     errorMsg='A permission error occurred when removing \"{netName}\". Please check the permissions for the network file.'.format(netName=netName),
-                    linkURL='/manageNetworks',
+                    linkURL='/networkManagement',
                     linkAction='go back to network management'
                 )
-        start_fn('303 See Other', [('Location','/manageNetworks')])
+        start_fn('303 See Other', [('Location','/networkManagement')])
         return []
 
     def networkManagementHandler(self, environ, start_fn):
@@ -1642,12 +1666,13 @@ class SegmentationServer:
             return self.unauthorizedHandler(environ, start_fn)
 
         networkPaths, networkTimestamps = self.getNeuralNetworkList(includeTimestamps=True)
+        networkTimestampStrings = [timestamp.strftime(HTML_DATE_FORMAT) for timestamp in networkTimestamps]
 
         with open('html/NetworkManagementTableRowTemplate.html', 'r') as f:
             networkEntryTemplate = f.read()
 
         networkEntries = []
-        for k, networkPath, timestamp in enumerate(zip(networkPaths, networkTimestamps)):
+        for k, (networkPath, timestamp) in enumerate(zip(networkPaths, networkTimestampStrings)):
             networkEntries.append(
                 networkEntryTemplate.format(
                     netNum = k,
@@ -1816,11 +1841,13 @@ class SegmentationServer:
         )
 
     def unauthorizedHandler(self, environ, start_fn):
+        user=getUsername(environ)
+        logger.log(logging.INFO, 'Unauthorized access attempt: {user}'.format(user=user))
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
         return self.formatError(
             environ,
             errorTitle='Not authorized',
-            errorMsg='User {user} is not authorized to perform that action!'.format(user=getUsername(environ)),
+            errorMsg='User {user} is not authorized to perform that action!'.format(user=user),
             linkURL='/',
             linkAction='return to job creation page'
         )
