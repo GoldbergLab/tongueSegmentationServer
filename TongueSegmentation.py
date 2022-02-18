@@ -83,6 +83,8 @@ class SegSpec:
 
     def _paramsValid(self):
         for partName in self._partNames:
+            print('Part=', partName)
+            print('Checking if _maskDims is valid:', self._maskDims[partName])
             if None in self._maskDims[partName]:
                 return (False, 'Uninitialized mask dimension')
             w, h, x, y = self._maskDims[partName]
@@ -180,9 +182,11 @@ class SegSpec:
                             h = None
                         if w is not None and (overwriteShape or (self._maskDims[partName][0] is None)):
                             # We got a width from the network, and either we're overwriting width, or width was not specified.
+                            print('Using width from network', w)
                             self._maskDims[partName][0] = w
                         if h is not None and (overwriteShape or (self._maskDims[partName][1] is None)):
                             # We got a height from the network, and either we're overwriting height, or height  was not specified.
+                            print('Using height from network:', h)
                             self._maskDims[partName][1] = h
         valid, reason = self._paramsValid()
         if not valid:
