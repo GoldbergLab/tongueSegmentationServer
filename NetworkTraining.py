@@ -7,6 +7,7 @@ from static.models.unet_model import unet
 from scipy.io import loadmat
 import json
 import random
+import logging
 
 # This script uses a set of training data assembled into a .mat file consisting of a stack of images
 #    and a corresponding set of binary masks that label the pixels in the image stacks into two classes.
@@ -29,10 +30,16 @@ def createDataAugmentationParameters(rotation_range=None, width_shift_range=0.1,
         "vertical_flip":vertical_flip
     }
 
-def trainNetwork(trained_network_path, training_data_path, augment=True,
-    batch_size=10, epochs=512, image_field_name='imageStack',
+class PrintLogger:
+    def __init__(self):
+        pass
+    def log(lvl, msg):
+        print(msg)
+
+def trainNetwork(trained_network_path, training_data_path, start_network_path=None,
+    augment=True, batch_size=10, epochs=512, image_field_name='imageStack',
     mask_field_name='maskStack', data_augmentation_parameters={},
-    epoch_progress_callback=None):
+    epoch_progress_callback=None, logger=None):
     # Actually train the network, saving the best network to a file after each epoch.
     # augment = boolean flag indicating whether to randomly augment training data
     # batch_size = Size of training batches (size of batches that dataset is divided into for each epoch):
@@ -46,9 +53,15 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
     #   which takes a progress argument which will be a dictionary of progress
     #   indicators
 
+    if logger is None:
+        logger = PrintLogger()
+
     # Reset whatever buffers or saved state exists...not sure exactly what that consists of.
     # This may not actually work? Word is you have to restart whole jupyter server to get this to work.
     clear_session()
+
+    # Convert inter-epoch progress callback to a tf.keras.Callback object
+    epoch_progress_callback = TrainingProgressCallback(epoch_progress_callback)
 
     # Load training data
     print('Loading images and masks...')
@@ -67,23 +80,25 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
     print("...image and mask data loaded.")
     print("Image stack dimensions:", img.shape)
     print(" Mask stack dimensions:", mask.shape)
+    print('start path:', start_network_path)
+    print('train path:', trained_network_path)
 
     if augment:
         imgGen = ImageDataGenerator(**data_augmentation_parameters)
         maskGen = ImageDataGenerator(**data_augmentation_parameters)
 
-    if trained_network_path is None:
+    if start_network_path is None:
         # Randomize new network structure using architecture in model.py file
         lickbot_net = unet(net_scale = 1)
     else:
         # Load previously trained network from a file
-        lickbot_net = load_model(trained_network_path)
+        lickbot_net = load_model(start_network_path)
 
     # Instruct training algorithm to save best network to disk whenever an improved network is found.
-    model_checkpoint = ModelCheckpoint(trained_network_path, monitor='loss',verbose=1, save_best_only=True)
-    callback_list = [model_checkpoint]
-    if epoch_progress_callback is not None:
-        callback_list.append(epoch_progress_callback)
+    model_checkpoint = ModelCheckpoint(str(trained_network_path), monitor='loss', verbose=1, save_best_only=True)
+    callback_list = [model_checkpoint] #, TestCallback()]
+    # if epoch_progress_callback is not None:
+    #     callback_list.append(epoch_progress_callback)
 
     if augment:
         print("Using automatically augmented training data.")
@@ -109,6 +124,12 @@ def trainNetwork(trained_network_path, training_data_path, augment=True,
             callbacks=callback_list
         )
 
+class TestCallback(keras_callback):
+    def on_epoch_end(self, epoch, logs=None):
+        print('Epoch done!!!!')
+        print(epoch)
+        print(logs)
+
 class TrainingProgressCallback(keras_callback):
     def __init__(self, progressFunction):
         super(TrainingProgressCallback, self).__init__()
@@ -116,10 +137,10 @@ class TrainingProgressCallback(keras_callback):
         self.progressFunction = progressFunction
 
     def on_epoch_end(self, epoch, logs=None):
-        self.logs.append(logs)
-        keys = list(logs.keys())
+        # self.logs.append(logs)
+        # keys = list(logs.keys())
         self.progressFunction(epoch)
-        print("End epoch {} of training; got log keys: {}".format(epoch, keys))
+        # print("End epoch {} of training; got log keys: {}".format(epoch, keys))
 
 def validateNetwork(trained_network_path, img=None, imgIterator=None, maskIterator=None):
     # Load trained network

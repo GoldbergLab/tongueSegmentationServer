@@ -514,7 +514,7 @@ class SegmentationServer:
                     # This is the specified job num - stop, don't count any more
                     break
                 if self.jobQueue[jobNum]['completionTime'] is None:
-                    epochsAhead += self.jobQueue[jobNum][numEpochs] - self.jobQueue[jobNum][lastEpochNumber]
+                    epochsAhead += self.jobQueue[jobNum]['numEpochs'] - self.jobQueue[jobNum]['lastEpochNumber']
         return epochsAhead
 
     def finalizeSegmentationJobHandler(self, environ, start_fn):
@@ -1099,7 +1099,6 @@ class SegmentationServer:
             return [f.read()]
 
     def getJobTimeStats(self, jobNum):
-
         creationTime = ""
         startTime = "Not started yet"
         completionTime = "Not complete yet"
@@ -1117,7 +1116,8 @@ class SegmentationServer:
             timeConfInt = np.std(deltaT)*1.96
             timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
             if self.jobQueue[jobNum]['completionTime'] is None:
-                estimatedSecondsRemaining = (numVideos - numCompletedVideos) * meanTime
+                numTasks, numCompletedTasks = self.getJobProgress(jobNum)
+                estimatedSecondsRemaining = (numTasks - numCompletedTasks) * meanTime
                 days, remainder = divmod(estimatedSecondsRemaining, 86400)
                 hours, remainder = divmod(remainder, 3600)
                 minutes, seconds = divmod(remainder, 60)
