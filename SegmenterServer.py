@@ -529,7 +529,7 @@ class SegmentationServer:
                     # This is the specified job num - stop, don't count any more
                     break
                 if self.jobQueue[jobNum]['completionTime'] is None:
-                    epochsAhead += self.jobQueue[jobNum]['numEpochs'] - self.jobQueue[jobNum]['lastEpochNumber']
+                    epochsAhead += self.jobQueue[jobNum]['numEpochs'] - self.jobQueue[jobNum]['lastEpochNum']
         return epochsAhead
 
     def finalizeSegmentationJobHandler(self, environ, start_fn):
@@ -724,6 +724,16 @@ class SegmentationServer:
                 startNetworkPath = NETWORKS_FOLDER / startNetworkName
             newNetworkName = postData['newNetworkName'][0]
             newNetworkPath = NETWORKS_FOLDER / newNetworkName
+            if newNetworkPath.is_file():
+                # Chosen network name is already taken
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+                return self.formatError(
+                    environ,
+                    errorTitle='Network name already in use',
+                    errorMsg='A network by the name \"{newName}\" already exists. Please choose a different name, or rename/remove the preexisting network first.'.format(newName=newNetworkName),
+                    linkURL='/networkManagement',
+                    linkAction='go to network management, or use your browser\'s back button to go back to your new train job page.'
+                )
             trainingDataPath = Path(postData['trainingDataPath'][0])
             pathStyle = postData['pathStyle'][0]
             batchSize = int(postData['batchSize'][0])
@@ -792,6 +802,9 @@ class SegmentationServer:
         if startNetworkPath is not None and not startNetworkPath.is_file():
             valid = False
             errorMessages.append('Starting network file not found: {startNetworkPath}'.format(startNetworkPath=startNetworkPath))
+        if newNetworkPath.suffix.lower() not in NEURAL_NETWORK_EXTENSIONS:
+            valid = False
+            errorMessages.append('Invalid network file extension. Please use one of the following file extensions to name your network: {e}'.format(e=', '.join(NEURAL_NETWORK_EXTENSIONS)))
 
         if not valid:
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -827,7 +840,7 @@ class SegmentationServer:
             augmentationParameters=augmentationParameters,  # Dictionary of augmentation parameters
             trainingDataPath=reRootedTrainingDataPath,      # Path to the .mat file containing the training data
             generatePreview=generateValidationPreview,      # Should we generate validation results between each epoch?
-            lastEpochNumber=0,                              # Last completed epoch number
+            lastEpochNum=0,                                 # Last completed epoch number
             times=[],                                       # List of epoch completion times
             creationTime=time.time_ns(),                    # Time job was created
             startTime=None,                                 # Time job was started
@@ -1127,9 +1140,9 @@ class SegmentationServer:
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
-            meanTimeStr = "{meanTime:.1f}".format(meanTime=meanTime)
+            meanTimeStr = "{meanTime:.2f}".format(meanTime=meanTime)
             timeConfInt = np.std(deltaT)*1.96
-            timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
+            timeConfIntStr = "{timeConfInt:.2f}".format(timeConfInt=timeConfInt)
             if self.jobQueue[jobNum]['completionTime'] is None:
                 numTasks, numCompletedTasks = self.getJobProgress(jobNum)
                 estimatedSecondsRemaining = (numTasks - numCompletedTasks) * meanTime
@@ -1331,7 +1344,6 @@ class SegmentationServer:
                 hidePreview=hidePreview
             )
         elif jobEntry['jobType'] == TRAIN_TYPE:
-
             if jobEntry['startNetworkPath'] is None:
                 startNetworkNameText = "Randomized (naive) network"
             else:
@@ -1579,7 +1591,7 @@ class SegmentationServer:
             return self.formatError(
                 environ,
                 errorTitle='Cannot rename - name already in use',
-                errorMsg='A network by the name \"{newName}\" already exists. Please rename or remove that network first.'.format(netName=newName),
+                errorMsg='A network by the name \"{newName}\" already exists. Please rename or remove that network first.'.format(newName=newName),
                 linkURL='/networkManagement',
                 linkAction='go back to network management'
             )
@@ -1696,7 +1708,7 @@ class SegmentationServer:
             numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
         elif self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
             numTasks = self.jobQueue[jobNum]['numEpochs']
-            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNumber']
+            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNum']
         else:
             raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
         return numTasks, numCompletedTasks

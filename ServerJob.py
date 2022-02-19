@@ -146,7 +146,7 @@ class TrainJob(ServerJob):
 
     def endEpoch(self, lastEpochNum):
         self.lastEpochTime = time.time_ns()
-        self.sendProgess(lastEpochNum)
+        self.sendProgress(lastEpochNum)
 
     def sendProgress(self, lastEpochNum): #, finishedVideoList, videoList, currentVideo, processingStartTime):
         # Send progress to server:

@@ -46,16 +46,16 @@
                 <progress class="twelve columns" id="percentDone" value="{percentComplete}" max="100">{percentComplete} %</progress>
               </div>
               <div class="row">
-                <div class="three columns">Percent complete:</div><div class="nine columns"><strong>{percentComplete} %</strong></div>
+                <div class="three columns">% complete:</div><div class="nine columns"><strong>{percentComplete} %</strong></div>
               </div>
               <div class="row">
                 <div class="three columns"># of epochs complete:</div><div class="nine columns"><strong>{numEpochsComplete}/{numEpochsTotal}</strong></div>
               </div>
               <div class="row">
-                <div class="three columns">Estimated time remaining:</div><div class="nine columns"><strong>{estimatedTimeRemaining}</strong></div>
+                <div class="three columns">Est. time remaining:</div><div class="nine columns"><strong>{estimatedTimeRemaining}</strong></div>
               </div>
               <div class="row">
-                <div class="three columns">Processing time per video: </div><div class="nine columns"><strong>{meanTime} &plusmn; {confInt} s</strong></div>
+                <div class="three columns">Time/epoch: </div><div class="nine columns"><strong>{meanTime} &plusmn; {confInt} s</strong></div>
               </div>
               <div class="row">
                 <div class="three columns">Job creation time: </div><div class="nine columns"><strong>{creationTime}</strong></div>
@@ -121,8 +121,8 @@
       </div>
     </body>
     <script>
-      if ({augmentData} == 'No') {{
-        document.getElementById('augmentData').style.display = 'none';
+      if ('{augmentData}' == 'No') {{
+        document.getElementById('augmentParams').style.display = 'none';
       }}
     </script>
 </html>

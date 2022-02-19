@@ -97,8 +97,8 @@ def trainNetwork(trained_network_path, training_data_path, start_network_path=No
     # Instruct training algorithm to save best network to disk whenever an improved network is found.
     model_checkpoint = ModelCheckpoint(str(trained_network_path), monitor='loss', verbose=1, save_best_only=True)
     callback_list = [model_checkpoint] #, TestCallback()]
-    # if epoch_progress_callback is not None:
-    #     callback_list.append(epoch_progress_callback)
+    if epoch_progress_callback is not None:
+        callback_list.append(epoch_progress_callback)
 
     if augment:
         print("Using automatically augmented training data.")
