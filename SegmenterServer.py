@@ -68,6 +68,8 @@ PRIVATE_SUBFOLDER = 'private'
 AUTH_NAME = 'Auth.json'
 REMOVED_NETWORKS_SUBFOLDER = 'deleted'
 
+DEFAULT_MOUNT_PATH = 'X:'
+
 DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
 DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
 RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
@@ -1393,14 +1395,13 @@ class SegmentationServer:
         else:
             raise ValueError('Unrecognized job type: {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
-
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
         neuralNetworkList = self.getNeuralNetworkList(namesOnly=True)
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
-        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue=DEFAULT_MOUNT_PATH)
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
@@ -1445,7 +1446,7 @@ class SegmentationServer:
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
-        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue=DEFAULT_MOUNT_PATH)
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
