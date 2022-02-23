@@ -96,7 +96,7 @@ def trainNetwork(trained_network_path, training_data_path, start_network_path=No
 
     # Instruct training algorithm to save best network to disk whenever an improved network is found.
     model_checkpoint = ModelCheckpoint(str(trained_network_path), monitor='loss', verbose=1, save_best_only=True)
-    callback_list = [model_checkpoint] #, TestCallback()]
+    callback_list = [model_checkpoint]
     if epoch_progress_callback is not None:
         callback_list.append(epoch_progress_callback)
 
@@ -124,12 +124,6 @@ def trainNetwork(trained_network_path, training_data_path, start_network_path=No
             callbacks=callback_list
         )
 
-class TestCallback(keras_callback):
-    def on_epoch_end(self, epoch, logs=None):
-        print('Epoch done!!!!')
-        print(epoch)
-        print(logs)
-
 class TrainingProgressCallback(keras_callback):
     def __init__(self, progressFunction):
         super(TrainingProgressCallback, self).__init__()
@@ -139,7 +133,15 @@ class TrainingProgressCallback(keras_callback):
     def on_epoch_end(self, epoch, logs=None):
         # self.logs.append(logs)
         # keys = list(logs.keys())
-        self.progressFunction(epoch)
+        if 'loss' in logs:
+            loss = logs['loss']
+        else:
+            loss = None
+        if 'acc' in logs:
+            accuracy = logs['acc']
+        else:
+            accuracy = None
+        self.progressFunction(epoch=epoch, loss=loss, accuracy=accuracy)
         # print("End epoch {} of training; got log keys: {}".format(epoch, keys))
 
 def validateNetwork(trained_network_path, img=None, imgIterator=None, maskIterator=None):

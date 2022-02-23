@@ -144,19 +144,21 @@ class TrainJob(ServerJob):
             else:
                 if self.verbose >= 0: self.log("Param not settable: {key}={val}".format(key=key, val=params[key]))
 
-    def endEpoch(self, lastEpochNum):
+    def endEpoch(self, epoch=None, loss=None, accuracy=None):
         self.lastEpochTime = time.time_ns()
-        self.sendProgress(lastEpochNum)
+        self.sendProgress(epoch=epoch, loss=loss, accuracy=accuracy)
 
-    def sendProgress(self, lastEpochNum): #, finishedVideoList, videoList, currentVideo, processingStartTime):
+    def sendProgress(self, epoch=None, loss=None, accuracy=None): #, finishedVideoList, videoList, currentVideo, processingStartTime):
         # Send progress to server:
         progress = dict(
             # videosCompleted=len(finishedVideoList),
             # videosRemaining=len(videoList),
             log=self.logBuffer,
             exitCode=self.exitCode,
-            lastEpochNum=lastEpochNum,
-            lastEpochTime=self.lastEpochTime
+            lastEpochNum=epoch,
+            lastEpochTime=self.lastEpochTime,
+            loss=loss,
+            accuracy=accuracy
         )
         self.logBuffer = []
         self.progressQueue.put(progress)

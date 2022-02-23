@@ -843,6 +843,8 @@ class SegmentationServer:
             trainingDataPath=reRootedTrainingDataPath,      # Path to the .mat file containing the training data
             generatePreview=generateValidationPreview,      # Should we generate validation results between each epoch?
             lastEpochNum=0,                                 # Last completed epoch number
+            loss=[],                                        # List of the calculated loss after each epoch
+            accuracy=[],                                    # List of the calculated accuracy after each epoch
             times=[],                                       # List of epoch completion times
             creationTime=time.time_ns(),                    # Time job was created
             startTime=None,                                 # Time job was started
@@ -1076,6 +1078,10 @@ class SegmentationServer:
                         # Get the time when the last epoch completed
                         if progress['lastEpochTime'] is not None:
                             self.jobQueue[jobNum]['times'].append(progress['lastEpochTime'])
+                        if progress['loss'] is not None:
+                            self.jobQueue[jobNum]['loss'].append(progress['loss'])
+                        if progress['accuracy'] is not None:
+                            self.jobQueue[jobNum]['accuracy'].append(progress['accuracy'])
                     else:
                         raise ValueError('Unknown type: {t}'.format(t=self.jobQueue[jobNum]['jobType']))
                 except queue.Empty:
@@ -1205,7 +1211,7 @@ class SegmentationServer:
             else:
                 if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
-                    stateDescription = 'This job has been cancelled, and will stop after the current video is complete. All existing masks will remain in place. Stand by...'
+                    stateDescription = 'This job has been cancelled, and will stop after the current task is complete. All existing output will remain in place. Stand by...'
                 else:
                     exitCodePhrase = 'is <strong>in progress</strong>!'
         elif self.isSucceeded(jobNum):
@@ -1355,6 +1361,19 @@ class SegmentationServer:
             else:
                 augmentDataText = 'No'
 
+            if len(jobEntry['loss']) > 0:
+                bestLoss = '{:0.4f}'.format(min(jobEntry['loss']))
+                lastLoss = '{:0.4f}'.format(jobEntry['loss'][-1])
+            else:
+                bestLoss = '--'
+                lastLoss = '--'
+            if len(jobEntry['loss']) > 0:
+                bestAccuracy = '{:0.4f}'.format(max(jobEntry['accuracy']))
+                lastAccuracy = '{:0.4f}'.format(jobEntry['accuracy'][-1])
+            else:
+                bestAccuracy = '--'
+                lastAccuracy = '--'
+
             augmentationParameters = jobEntry['augmentationParameters']
 
             start_fn('200 OK', [('Content-Type', 'text/html')])
@@ -1363,6 +1382,10 @@ class SegmentationServer:
                 'html/CheckTrainProgress.html',
                 numEpochsComplete=numCompletedTasks,
                 numEpochsTotal=numTasks,
+                bestLoss=bestLoss,
+                bestAccuracy=bestAccuracy,
+                lastLoss=lastLoss,
+                lastAccuracy=lastAccuracy,
                 startNetworkName=startNetworkNameText,
                 newNetworkName=jobEntry['newNetworkPath'].name,
                 batchSize=jobEntry['batchSize'],
@@ -1709,7 +1732,7 @@ class SegmentationServer:
             numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
         elif self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
             numTasks = self.jobQueue[jobNum]['numEpochs']
-            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNum']
+            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNum'] + 1
         else:
             raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
         return numTasks, numCompletedTasks
