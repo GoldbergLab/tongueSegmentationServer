@@ -365,6 +365,9 @@ class SegmentationServer:
         self.checkNetworkPathSafety(newPath)
         if oldPath.is_file():
             logger.log(logging.INFO, 'Removing net by moving it from \"{oldPath}\" to \"{newPath}\"'.format(oldPath=oldPath, newPath=newPath))
+            if newPath.is_file():
+                # Deleted network already exists in deleted folder
+                os.remove(newPath)
             os.rename(oldPath, newPath)
         else:
             raise FileNotFoundError('Could not find file {f}'.format(name))
