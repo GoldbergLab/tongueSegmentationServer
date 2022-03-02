@@ -289,7 +289,7 @@ class TrainJob(ServerJob):
                     if self.exitFlag:
                         self.exitCode = ServerJob.SUCCEEDED
                         nextState = ServerJob.STOPPING
-                    elif msg in ['', ServerJob.START]:
+                    elif msg in ['', ServerJob.START, ServerJob.PROCESS]:
                         # nextState = ServerJob.WORKING
                         nextState = ServerJob.STOPPING
                     elif msg == ServerJob.EXIT:
@@ -575,7 +575,7 @@ class SegmentationJob(ServerJob):
                     if self.exitFlag:
                         self.exitCode = ServerJob.SUCCEEDED
                         nextState = ServerJob.STOPPING
-                    elif msg in ['', ServerJob.START]:
+                    elif msg in ['', ServerJob.START, ServerJob.PROCESS]:
                         nextState = ServerJob.WORKING
                     elif msg == ServerJob.EXIT:
                         self.exitCode = ServerJob.SUCCEEDED
