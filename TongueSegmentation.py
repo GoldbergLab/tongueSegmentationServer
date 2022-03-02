@@ -12,6 +12,7 @@ from pathlib import Path
 from array2gif import write_gif
 from tensorflow import Graph, Session
 import functools
+import traceback
 
 def requireFrameSize(func):
     @functools.wraps(func)
@@ -275,7 +276,8 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
                 write_gif(gifData, gifSavePath, fps=40)
             except:
-                print("Mask preview creation failed.")
+                print("Mask preview creation failed with error:")
+                print(traceback.format_exc())
 
         # Save mask to disk
         savemat(savePath,{'mask_pred':maskPredictions[partName]}, do_compression=True)
