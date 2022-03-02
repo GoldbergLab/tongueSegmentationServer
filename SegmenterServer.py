@@ -3,7 +3,6 @@ from wsgi_basic_auth import BasicAuth
 import os
 if os.name == 'nt':
     import win32net
-import traceback
 import logging
 import datetime as dt
 import time
