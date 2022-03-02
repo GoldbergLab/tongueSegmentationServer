@@ -141,7 +141,9 @@ class TrainingProgressCallback(keras_callback):
             accuracy = logs['acc']
         else:
             accuracy = None
-        self.progressFunction(epoch=epoch, loss=loss, accuracy=accuracy)
+        exitFlag = self.progressFunction(epoch=epoch, loss=loss, accuracy=accuracy)
+        if exitFlag:
+            self.model.stop_training = True
         # print("End epoch {} of training; got log keys: {}".format(epoch, keys))
 
 def validateNetwork(trained_network_path, img=None, imgIterator=None, maskIterator=None):

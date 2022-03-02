@@ -148,6 +148,24 @@ class TrainJob(ServerJob):
         self.lastEpochTime = time.time_ns()
         self.sendProgress(epoch=epoch, loss=loss, accuracy=accuracy)
 
+        # This is a yucky hack due to the fact that trainNetwork is coded as a
+        #   blocking function. A better solution would be to figure out how to
+        #   make the training run in a separate process.
+        # CHECK FOR MESSAGES
+        while True:
+            try:
+                msg, arg = self.msgQueue.get(block=False)
+                if msg == ServerJob.SETPARAMS:
+                    self.setParams(**arg); msg = ''; arg=None
+                if msg == ServerJob.EXIT:
+                    self.exitFlag = True
+            except queue.Empty:
+                msg = '';
+                arg = None
+                break
+
+        return self.exitFlag
+
     def sendProgress(self, epoch=None, loss=None, accuracy=None): #, finishedVideoList, videoList, currentVideo, processingStartTime):
         # Send progress to server:
         progress = dict(
