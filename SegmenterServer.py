@@ -1595,9 +1595,9 @@ class SegmentationServer:
         )
 
     def networkRenameHandler(self, environ, start_fn):
-        if not isAdmin(getUsername(environ)):
-            # User is not authorized
-            return self.unauthorizedHandler(environ, start_fn)
+        # if not isAdmin(getUsername(environ)):
+        #     # User is not authorized
+        #     return self.unauthorizedHandler(environ, start_fn)
 
         # Get old and new names from URL
         oldName, newName = environ['PATH_INFO'].split('/')[-2:]
@@ -1658,9 +1658,9 @@ class SegmentationServer:
         return []
 
     def networkRemoveHandler(self, environ, start_fn):
-        if not isAdmin(getUsername(environ)):
-            # User is not authorized
-            return self.unauthorizedHandler(environ, start_fn)
+        # if not isAdmin(getUsername(environ)):
+        #     # User is not authorized
+        #     return self.unauthorizedHandler(environ, start_fn)
 
         # Get old and new names from URL
         netName = environ['PATH_INFO'].split('/')[-1]
@@ -1699,9 +1699,9 @@ class SegmentationServer:
         return []
 
     def networkManagementHandler(self, environ, start_fn):
-        if not isAdmin(getUsername(environ)):
-            # User is not authorized
-            return self.unauthorizedHandler(environ, start_fn)
+        # if not isAdmin(getUsername(environ)):
+        #     # User is not authorized
+        #     return self.unauthorizedHandler(environ, start_fn)
 
         networkPaths, networkTimestamps = self.getNeuralNetworkList(includeTimestamps=True)
         networkTimestampStrings = [timestamp.strftime(HTML_DATE_FORMAT) for timestamp in networkTimestamps]
