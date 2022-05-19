@@ -8,6 +8,10 @@ import os
 import queue
 import traceback
 import time
+import json
+import datetime as dt
+
+TIME_FORMAT = '%Y-%m-%d-T%H-%M-%S-%f'
 
 def clearQueue(q):
     if q is not None:
@@ -58,7 +62,7 @@ class ServerJob(mp.Process):
     SETPARAMS = 'msg_setParams'
     PROCESS = 'msg_process'
 
-    def __init__(self, *args, logger=None, daemon=True, **kwargs):
+    def __init__(self, *args, logger=None, daemon=True, paramRecord={}, **kwargs):
         mp.Process.__init__(self, *args, daemon=daemon, **kwargs)
         self.jobType = ServerJob.TYPE
         self.ID = "X"
@@ -68,6 +72,7 @@ class ServerJob(mp.Process):
         self.PID = mp.Value('i', -1)
         self.exitFlag = False
         self.logBuffer = []
+        self.paramRecord = paramRecord
 
     def run(self):
         self.PID.value = os.getpid()
@@ -188,6 +193,14 @@ class TrainJob(ServerJob):
         nextState = ServerJob.STOPPED
         lastState = ServerJob.STOPPED
         msg = ''; arg = None
+
+        # Record job parameters in text file in case user wants to see it later.
+        paramFileName = 'networkTrainingParameters_{timestamp}.txt'.format(
+            timestamp=dt.datetime.now().strftime(TIME_FORMAT)
+        )
+        paramFilePath = self.trainingDataPath.parents[0] / paramFileName
+        with open(paramFilePath, 'w') as f:
+            f.write(json.dumps(self.paramRecord, indent=4))
 
         while True:
             # Publish updated state
@@ -466,6 +479,14 @@ class SegmentationJob(ServerJob):
         nextState = ServerJob.STOPPED
         lastState = ServerJob.STOPPED
         msg = ''; arg = None
+
+        # Record job parameters in text file in case user wants to see it later.
+        paramFileName = 'segmentationParameters_{timestamp}.txt'.format(
+            timestamp=dt.datetime.now().strftime(TIME_FORMAT)
+        )
+        paramFilePath = self.maskSaveDirectory / paramFileName
+        with open(paramFilePath, 'w') as f:
+            f.write(json.dumps(self.paramRecord, indent=4))
 
         while True:
             # Publish updated state

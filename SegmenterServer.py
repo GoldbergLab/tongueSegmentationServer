@@ -570,16 +570,37 @@ class SegmentationServer:
                 botWidth = int(postData['botWidth'][0])
 
             if 'generatePreview' in postData:
-                logger.log(logging.INFO, "generatePreview retrieved from form: {generatePreview}".format(generatePreview=postData['generatePreview'][0]))
                 generatePreview = True
             else:
                 generatePreview = False
             if 'skipExisting' in postData:
-                logger.log(logging.INFO, "skipExisting retrieved from form: {skipExisting}".format(skipExisting=postData['skipExisting'][0]))
                 skipExisting = True
             else:
                 skipExisting = False
             jobName = postData['jobName'][0]
+
+            # Prepare to record job parameters for posterity
+            paramRecord = {
+                "rootMountPoint":rootMountPoint,
+                "videoRoot":videoRoot,
+                "videoFilter":videoFilter,
+                "maskSaveDirectory":maskSaveDirectory,
+                "pathStyle":pathStyle,
+                "topNetworkName":topNetworkName,
+                "botNetworkName":botNetworkName,
+                "binaryThreshold":binaryThreshold,
+                "topOffset":topOffset,
+                "topHeight":topHeight,
+                "topHeight":topHeight,
+                "botHeight":botHeight,
+                "topWidth":topWidth,
+                "botWidth":botWidth,
+                "botWidth":botWidth,
+                "generatePreview":generatePreview,
+                "skipExisting":skipExisting,
+                "jobName":jobName
+            }
+
         except KeyError:
             # Missing one of the postData arguments
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -672,7 +693,8 @@ class SegmentationServer:
             startTime=None,                         # Time job was started
             completionTime=None,                    # Time job was completed
             log=[],                                 # List of log output from job
-            exitCode=ServerJob.INCOMPLETE           # Job exit code
+            exitCode=ServerJob.INCOMPLETE,          # Job exit code
+            paramRecord=paramRecord,                # Record of relevant parameters for posterity
         )
 
         if topHeight is None:
@@ -771,6 +793,26 @@ class SegmentationServer:
                 generateValidationPreview = False
 
             jobName = postData['jobName'][0]
+
+            # Prepare to record job parameters for posterity
+            paramRecord = {
+                "rootMountPoint":rootMountPoint,
+                "startNetworkName":startNetworkName,
+                "newNetworkName":newNetworkName,
+                "trainingDataPath":trainingDataPath,
+                "pathStyle":pathStyle,
+                "batchSize":batchSize,
+                "numEpochs":numEpochs,
+                "augmentData":augmentData,
+                "rotationRange":rotationRange,
+                "widthShiftRange":widthShiftRange,
+                "heightShiftRange":heightShiftRange,
+                "zoomRange":zoomRange,
+                "horizontalFlip":horizontalFlip,
+                "verticalFlip":verticalFlip,
+                "generateValidationPreview":generateValidationPreview,
+                "jobName":jobName
+            }
         except KeyError:
             # Missing one of the postData arguments
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -853,6 +895,7 @@ class SegmentationServer:
             completionTime=None,                            # Time job was completed
             log=[],                                         # List of log output from job
             exitCode=ServerJob.INCOMPLETE                   # Job exit code
+            paramRecord=paramRecord,                        # Record of relevant parameters for posterity
         )
 
         if startNetworkPath is None:
