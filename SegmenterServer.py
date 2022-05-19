@@ -547,8 +547,10 @@ class SegmentationServer:
             videoFilter = postData['videoFilter'][0]
             maskSaveDirectory = postData['maskSaveDirectory'][0]
             pathStyle = postData['pathStyle'][0]
-            topNetworkPath = NETWORKS_FOLDER / postData['topNetworkName'][0]
-            botNetworkPath = NETWORKS_FOLDER / postData['botNetworkName'][0]
+            topNetworkName = postData['topNetworkName'][0]
+            botNetworkName = postData['botNetworkName'][0]
+            topNetworkPath = NETWORKS_FOLDER / topNetworkName
+            botNetworkPath = NETWORKS_FOLDER / botNetworkName
             binaryThreshold = float(postData['binaryThreshold'][0])
             topOffset = int(postData['topOffset'][0])
             if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
@@ -582,7 +584,7 @@ class SegmentationServer:
             # Prepare to record job parameters for posterity
             paramRecord = {
                 "rootMountPoint":rootMountPoint,
-                "videoRoot":videoRoot,
+                "videoDirs":videoDirs,
                 "videoFilter":videoFilter,
                 "maskSaveDirectory":maskSaveDirectory,
                 "pathStyle":pathStyle,
@@ -694,7 +696,7 @@ class SegmentationServer:
             completionTime=None,                    # Time job was completed
             log=[],                                 # List of log output from job
             exitCode=ServerJob.INCOMPLETE,          # Job exit code
-            paramRecord=paramRecord,                # Record of relevant parameters for posterity
+            paramRecord=paramRecord                 # Record of relevant parameters for posterity
         )
 
         if topHeight is None:
@@ -799,7 +801,7 @@ class SegmentationServer:
                 "rootMountPoint":rootMountPoint,
                 "startNetworkName":startNetworkName,
                 "newNetworkName":newNetworkName,
-                "trainingDataPath":trainingDataPath,
+                "trainingDataPath":str(trainingDataPath),
                 "pathStyle":pathStyle,
                 "batchSize":batchSize,
                 "numEpochs":numEpochs,
@@ -894,8 +896,8 @@ class SegmentationServer:
             startTime=None,                                 # Time job was started
             completionTime=None,                            # Time job was completed
             log=[],                                         # List of log output from job
-            exitCode=ServerJob.INCOMPLETE                   # Job exit code
-            paramRecord=paramRecord,                        # Record of relevant parameters for posterity
+            exitCode=ServerJob.INCOMPLETE,                  # Job exit code
+            paramRecord=paramRecord                         # Record of relevant parameters for posterity
         )
 
         if startNetworkPath is None:

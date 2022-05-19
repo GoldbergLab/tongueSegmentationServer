@@ -121,7 +121,7 @@ class TrainJob(ServerJob):
                 waitingTimeout = 600,
                 jobNum = None,
                 **kwargs):
-        ServerJob.__init__(self, logger=kwargs['logger']) #, **kwargs)
+        ServerJob.__init__(self, logger=kwargs['logger'], paramRecord=kwargs['paramRecord']) #, **kwargs)
         # Store inputs in instance variables for later access
         self.jobNum = jobNum
         self.jobType = TrainJob.TYPE
@@ -434,7 +434,7 @@ class SegmentationJob(ServerJob):
                 generatePreview = True,
                 skipExisting = False,
                 **kwargs):
-        ServerJob.__init__(self, logger=kwargs['logger']) #, **kwargs)
+        ServerJob.__init__(self, logger=kwargs['logger'], paramRecord=kwargs['paramRecord']) #, **kwargs)
         # Store inputs in instance variables for later access
         self.jobNum = jobNum
         self.jobType = SegmentationJob.TYPE
