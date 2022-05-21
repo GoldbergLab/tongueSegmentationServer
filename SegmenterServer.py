@@ -659,7 +659,7 @@ class SegmentationServer:
         videoLists = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
         # Error out if no videos are found
-        if len(videoLists) == 0 || all([len(videoList) == 0 for videoList in videoLists]):
+        if len(videoLists) == 0 or all([len(videoList) == 0 for videoList in videoLists]):
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return self.formatError(
                 environ,
@@ -709,7 +709,12 @@ class SegmentationServer:
             # Just one video list
             videoListText = "\n".join(["<li>{v}</li>".format(v=v) for v in videoLists[0]])
         else:
-            videoListText = "\n".join(["<ul>\n{subList}\n</ul>".format(subList=subList) for subList in ["\n".join(["\t<li>{v}</li>".format(v=v) for v in videoList]) for videoList in videoLists]])
+            videoListTexts = []
+            for k, videoList in enumerate(videoLists):
+                subListText = "\n".join(["\t<li>{v}</li>".format(v=v) for v in videoList])
+                subListText = "<li>Job {jobID}:\n<ul>\n{subListText}\n</ul></li>".format(subListText=subListText, jobID=jobNums[k])
+                videoListTexts.append(subListText)
+            videoListText = "\n".join(videoListTexts)
 
         if topHeight is None:
             topHeightText = "Use network size"
@@ -728,12 +733,12 @@ class SegmentationServer:
         else:
             botWidthText = str(botWidth)
 
-        if len(jobIDs) > 1:
-            jobIDText = "job (Job ID {jobIDs})".format(jobIds[0])
+        if len(jobNums) <= 1:
+            jobIDText = "job (job ID {jobID})".format(jobID=jobNums[0])
         else:
-            jobIDText = "jobs (Job IDs {jobIDs})".format(jobIds=makeNaturalLanguageList(jobIDs))
+            jobIDText = "jobs (job IDs {jobIDs})".format(jobIDs=makeNaturalLanguageList(jobNums))
 
-        jobIDQueryString = '/'.join(jobIDs)
+        jobIDQueryString = '/'.join([str(jobNum) for jobNum in jobNums])
 
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
@@ -1001,7 +1006,7 @@ class SegmentationServer:
         #   to True.
 
         # Get jobNums from URL
-        jobNums = int(environ['PATH_INFO'].split('/')[1:])
+        jobNums = [int(jobNum) for jobNum in environ['PATH_INFO'].split('/')[2:]]
 
         invalidJobNums = []
         unauthorizedJobNums = []
@@ -1280,7 +1285,7 @@ class SegmentationServer:
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
                                         and <strong>{epochsAhead} total epochs</strong> \
-                                        remaining. Your job will be enqueued after you confirm it.'
+                                        remaining. Your job will be enqueued after you confirm it.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead, epochsAhead=epochsAhead)
             else:
                 if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
@@ -1571,7 +1576,7 @@ class SegmentationServer:
 
     def cancelJobHandler(self, environ, start_fn):
         # Get jobNums from URL
-        jobNums = int(environ['PATH_INFO'].split('/')[1:])
+        jobNums = [int(jobNum) for jobNum in environ['PATH_INFO'].split('/')[2:]]
 
         invalidJobNums = []
         alreadyCancelledJobNums = []
@@ -1611,7 +1616,7 @@ class SegmentationServer:
             return self.formatError(
                 environ,
                 errorTitle='Invalid job ID',
-                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
+                errorMsg='Invalid job ID: {jobID}'.format(jobID=makeNaturalLanguageList(invalidJobNums)),
                 linkURL='/',
                 linkAction='recreate job'
             )
@@ -1621,7 +1626,7 @@ class SegmentationServer:
             return self.formatError(
                 environ,
                 errorTitle='Cannot terminate completed job',
-                errorMsg='Can\'t terminate job {jobID} because it has already finished processing.'.format(jobID=jobNum),
+                errorMsg='Can\'t terminate job {jobID} because it has already finished processing.'.format(jobID=makeNaturalLanguageList(alreadyCancelledJobNums)),
                 linkURL='/',
                 linkAction='create a new job'
             )
@@ -1629,7 +1634,10 @@ class SegmentationServer:
         if len(unauthorizedJobNums) > 0:
             return self.unauthorizedHandler(environ, start_fn)
 
-        start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
+        if len(jobNums) <= 1:
+            start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNums[0]))])
+        else:
+            start_fn('303 See Other', [('Location','/myJobs')])
         return []
 
     def getHumanReadableJobState(self, jobNum):
