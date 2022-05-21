@@ -15,7 +15,7 @@
       <div class="container">
         <div class="row">
           <div class='twelve columns'>
-            There are <strong>{jobsAhead} jobs</strong> ahead of you with <strong>{videosAhead} videos</strong> and <strong>{epochsAhead} training epochs</strong> remaining. Your job (Job ID {jobID}) will be enqueued to start as soon as any/all previous jobs are done.
+            There are <strong>{jobsAhead} jobs</strong> ahead of you with <strong>{videosAhead} videos</strong> and <strong>{epochsAhead} training epochs</strong> remaining. Your {jobIDText} will be enqueued to start as soon as any/all previous jobs are done.
           </div>
         </div>
         <div class="row">
@@ -65,11 +65,11 @@
           <div class="three columns">Skip existing masks:</div><div class="nine columns"><strong>{skipExisting}</strong></div>
         </div>
         <div class="row">
-          <form action="/confirmJob/{jobID}">
+          <form action="/confirmJob/{jobIDQueryString}">
               <input class="five columns button button-primary" type="submit" value="Confirm and enqueue job" />
           </form>
           <div class="two columns"></div>
-          <form action="/cancelJob/{jobID}">
+          <form action="/cancelJob/{jobIDQueryString}">
               <input class="five columns button button" type="submit" value="Cancel job" />
           </form>
         </div>
