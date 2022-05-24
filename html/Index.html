@@ -45,17 +45,18 @@
           </select>
         </div>
         <div class="row">
-          <label class="three columns" for="videoRoot"
+          <label class="three columns" for="videoSearchDirs"
               aria-label="Specify one or more video directories where your videos live.
                 The directories must be accessible to the segmentation server (either on a local drive, or more likely, on a shared drive).
                 The root of this path will be replaced by the root you select above, so you don't have to worry about the drive letter or mount point.
-                The easiest way is to copy and paste the path to each directory as you see it on your computer.
-                Note that your masks will all go in one folder, even if you specify multiple video folders."
+                The easiest way is to copy and paste the path to each directory as you see it on your computer. If you specify more than one video
+                save directory, there must be exactly one video directory per mask directory; they must be in corresponding order to the mask
+                directories."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Video root directories (one per line):
+            Video search directories (one per line):
           </label>
-          <textarea class="nine columns" rows="3" cols="30" id="videoRoot" name="videoRoot" value=""></textarea>
+          <textarea class="nine columns" rows="3" cols="30" id="videoSearchDirs" name="videoSearchDirs" value=""></textarea>
         </div>
         <div class="row">
           <label class="three columns" for="videoFilter"
@@ -69,16 +70,18 @@
           <input class="nine columns" type="text" id="videoFilter" name="videoFilter" value="*">
         </div>
         <div class="row">
-          <label class="three columns" for="maskSaveDirectory"
-              aria-label="Specify a directory that you want the masks to be saved in.
+          <label class="three columns" for="maskSaveDirs"
+              aria-label="Specify one or more directories that you want the masks to be saved in.
                 As with the video directories, the directory must be accessible to the segmentation server
                 (either on the server computer, or on a network drive accessible to it),
-                and whatever root is specified in the path will be replaced with the selected root."
+                and whatever root is specified in the path will be replaced with the selected root. If you
+                specify more than one mask save directory, there must be exactly one mask save directory per
+                video directory; they must be in corresponding order to the video directories."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Mask save directory:
+            Mask save directories (one per line):
           </label>
-          <input class="nine columns" type="text" id="maskSaveDirectory" name="maskSaveDirectory" value="">
+          <textarea class="nine columns" rows="3" cols="30" id="maskSaveDirs" name="maskSaveDirs" value=""></textarea>
         </div>
         <div class="row">
             <label class="label-body three columns" for="windowsStyle"

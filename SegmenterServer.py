@@ -177,16 +177,18 @@ def reRootDirectory(rootMountPoint, pathStyle, directory):
     return reRootedDirectory
 
 def getVideoList(videoDirs, videoFilter='*'):
-    # Generate a list of video Path objects from the given directories using the given path filters
+    # Generate a set of lists of video Path objects from the given directories using the given path filters
     #   videoDirs - a list of strings representing video directory paths to look in
     #   pathStyle - the style of the videoDirs paths - either 'windowsStyle' or 'posixStyle'
-    videoList = []
+    videoLists = []
     for p in videoDirs:
+        videoList = []
         for videoPath in p.iterdir():
             if videoPath.suffix.lower() == ".avi":
                 if videoPath.match(videoFilter):
                     videoList.append(videoPath)
-    return videoList
+        videoLists.append(videoList)
+    return videoLists
 
 def getUsername(environ):
     request = Request(environ)
@@ -198,6 +200,17 @@ def getUsername(environ):
 
 def addMessage(environ, message):
     environ["segserver.message"] = message
+
+def makeNaturalLanguageList(strings):
+    NLList = ""
+    if len(strings) == 1:
+        return strings[0]
+    for k, string in enumerate(strings):
+        if k < len(strings)-1:
+            NLList += "{string}, ".format(string=string)
+        else:
+            NLList += "and {string}".format(string=string)
+    return NLList
 
 class UpdaterDaemon(mp.Process):
     def __init__(self,
@@ -543,9 +556,9 @@ class SegmentationServer:
 
         try:
             rootMountPoint = postData['rootMountPoint'][0]
-            videoDirs = postData['videoRoot'][0].strip().splitlines()
+            videoDirs = postData['videoSearchDirs'][0].strip().splitlines()
             videoFilter = postData['videoFilter'][0]
-            maskSaveDirectory = postData['maskSaveDirectory'][0]
+            maskSaveDirs = postData['maskSaveDirs'][0].strip().splitlines()
             pathStyle = postData['pathStyle'][0]
             topNetworkName = postData['topNetworkName'][0]
             botNetworkName = postData['botNetworkName'][0]
@@ -614,6 +627,17 @@ class SegmentationServer:
                 linkAction='return to job creation page (or use browser back button)'
                 )
 
+        if len(maskSaveDirs) != len(videoDirs):
+            # Different # of mask and video dirs
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Non-corresponding video and mask directories',
+                errorMsg='A different number of mask directories than video directories was provided. Please make sure there is a 1:1 correspondence between video and mask directories.',
+                linkURL='/',
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
         segSpec = SegSpec(
             partNames=['Bot', 'Top'],
             heights=[botHeight, topHeight],
@@ -624,19 +648,20 @@ class SegmentationServer:
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
-        maskSaveDirectory = reRootDirectory(rootMountPoint, pathStyle, maskSaveDirectory)
+        reRootedMaskSaveDirs = [reRootDirectory(rootMountPoint, pathStyle, maskSaveDir) for maskSaveDir in maskSaveDirs]
 
         # Check if all parameters are valid. If not, display error and offer to go back
         valid = True
         errorMessages = []
-        if not maskSaveDirectory.exists():
-            valid = False
-            errorMessages.append('Mask save directory not found: {maskSaveDirectory}. Hint: Did you pick the right root?'.format(maskSaveDirectory=maskSaveDirectory))
+        for maskSaveDir in reRootedMaskSaveDirs:
+            if not maskSaveDir.exists():
+                valid = False
+                errorMessages.append('Mask save directory not found: {maskSaveDirectory}. Hint: Did you pick the right root?'.format(maskSaveDirectory=maskSaveDir))
         for videoDir in reRootedVideoDirs:
             if not videoDir.exists():
                 valid = False
                 errorMessages.append('Video directory not found: {videoDir}'.format(videoDir=videoDir))
-        # keys = ['rootMountPoint', 'videoRoot', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
+        # keys = ['rootMountPoint', 'videoSearchDirs', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
         # missingKeys = [key for key in keys if key not in postData]
         # if len(missingKeys) > 0:
         #     # Not all form parameters got POSTed
@@ -653,11 +678,11 @@ class SegmentationServer:
                 linkAction='return to job creation page (or use browser back button)'
                 )
 
-        # Generate list of videos
-        videoList = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
+        # Generate list of lists of videos (one list per videoDir)
+        videoLists = getVideoList(reRootedVideoDirs, videoFilter=videoFilter)
 
         # Error out if no videos are found
-        if len(videoList) == 0:
+        if len(videoLists) == 0 or all([len(videoList) == 0 for videoList in videoLists]):
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return self.formatError(
                 environ,
@@ -667,37 +692,53 @@ class SegmentationServer:
                 linkAction='return to job creation page (or use browser back button)'
                 )
 
-        # Add job parameters to queue
-        jobNum = SegmentationServer.newJobNum()
+        jobNums = []
 
-        jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
-        videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
-        epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
+        # Loop over (usually one, potentially multiple) pairs of videoLists and mask save dirs, create one job for each.
+        for videoList, maskDir in zip(videoLists, reRootedMaskSaveDirs):
+            # Add job parameters to queue
+            jobNum = SegmentationServer.newJobNum()
+            jobNums.append(jobNum)
 
-        self.jobQueue[jobNum] = dict(
-            job=None,                               # Job process object
-            jobName=jobName,                        # Name/description of job
-            jobType=SEGMENT_TYPE,                   # Type of job (segment or train)
-            jobClass=SegmentationJob,               # Reference to job class
-            owner=getUsername(environ),             # Owner of job, has special privileges
-            jobNum=jobNum,                          # Job ID
-            confirmed=False,                        # Has user confirmed params yet
-            cancelled=False,                        # Has the user cancelled this job?
-            videoList=videoList,                    # List of video paths to process
-            maskSaveDirectory=maskSaveDirectory,    # Path to save masks
-            segSpec=segSpec,                        # segSpec
-            generatePreview=generatePreview,        # Should we generate gif previews of masks?
-            skipExisting=skipExisting,              # Should we skip generating masks that already exist?
-            binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
-            completedVideoList=[],                  # List of processed videos
-            times=[],                               # List of video processing start times
-            creationTime=time.time_ns(),            # Time job was created
-            startTime=None,                         # Time job was started
-            completionTime=None,                    # Time job was completed
-            log=[],                                 # List of log output from job
-            exitCode=ServerJob.INCOMPLETE,          # Job exit code
-            paramRecord=paramRecord                 # Record of relevant parameters for posterity
-        )
+            self.jobQueue[jobNum] = dict(
+                job=None,                               # Job process object
+                jobName=jobName,                        # Name/description of job
+                jobType=SEGMENT_TYPE,                   # Type of job (segment or train)
+                jobClass=SegmentationJob,               # Reference to job class
+                owner=getUsername(environ),             # Owner of job, has special privileges
+                jobNum=jobNum,                          # Job ID
+                confirmed=False,                        # Has user confirmed params yet
+                cancelled=False,                        # Has the user cancelled this job?
+                videoList=videoList,                    # List of video paths to process
+                maskSaveDirectory=maskDir,              # Path to save masks
+                segSpec=segSpec,                        # segSpec
+                generatePreview=generatePreview,        # Should we generate gif previews of masks?
+                skipExisting=skipExisting,              # Should we skip generating masks that already exist?
+                binaryThreshold=binaryThreshold,        # Threshold to use to change grayscale masks to binary
+                completedVideoList=[],                  # List of processed videos
+                times=[],                               # List of video processing start times
+                creationTime=time.time_ns(),            # Time job was created
+                startTime=None,                         # Time job was started
+                completionTime=None,                    # Time job was completed
+                log=[],                                 # List of log output from job
+                exitCode=ServerJob.INCOMPLETE           # Job exit code
+                paramRecord=paramRecord                 # Record of relevant parameters for posterity
+            )
+
+        jobsAhead = self.countJobsRemaining(beforeJobNum=jobNums[0])
+        videosAhead = self.countVideosRemaining(beforeJobNum=jobNums[0])
+        epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNums[0])
+
+        if len(videoLists) == 1:
+            # Just one video list
+            videoListText = "\n".join(["<li>{v}</li>".format(v=v) for v in videoLists[0]])
+        else:
+            videoListTexts = []
+            for k, videoList in enumerate(videoLists):
+                subListText = "\n".join(["\t<li>{v}</li>".format(v=v) for v in videoList])
+                subListText = "<li>Job {jobID}:\n<ul>\n{subListText}\n</ul></li>".format(subListText=subListText, jobID=jobNums[k])
+                videoListTexts.append(subListText)
+            videoListText = "\n".join(videoListTexts)
 
         if topHeight is None:
             topHeightText = "Use network size"
@@ -716,11 +757,18 @@ class SegmentationServer:
         else:
             botWidthText = str(botWidth)
 
+        if len(jobNums) <= 1:
+            jobIDText = "job (job ID {jobID})".format(jobID=jobNums[0])
+        else:
+            jobIDText = "jobs (job IDs {jobIDs})".format(jobIDs=makeNaturalLanguageList(jobNums))
+
+        jobIDQueryString = '/'.join([str(jobNum) for jobNum in jobNums])
+
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
             'html/FinalizeSegmentationJob.html',
-            videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
+            videoList=videoListText,
             topNetworkName=topNetworkPath.name,
             botNetworkName=botNetworkPath.name,
             binaryThreshold=binaryThreshold,
@@ -731,7 +779,8 @@ class SegmentationServer:
             botWidth=botWidthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
-            jobID=jobNum,
+            jobIDText=jobIDText,
+            jobIDQueryString=jobIDQueryString,
             jobName=jobName,
             jobsAhead=jobsAhead,
             videosAhead=videosAhead,
@@ -1001,27 +1050,54 @@ class SegmentationServer:
         #   goes to this handler, which changes the "confirmed" state of the job
         #   to True.
 
-        # Get jobNum from URL
-        jobNum = int(environ['PATH_INFO'].split('/')[-1])
-#        logger.log(logging.INFO, 'getJobNums(active=False, completed=False) - is job {jobNum} ready for confirming?'.format(jobNum=jobNum))
-        if jobNum not in self.getJobNums(active=False, completed=False):
-            # Invalid jobNum
+        # Get jobNums from URL
+        jobNums = [int(jobNum) for jobNum in environ['PATH_INFO'].split('/')[2:]]
+
+        invalidJobNums = []
+        unauthorizedJobNums = []
+
+        # Loop over each job, check if it is valid, then confirm it if not.
+        for jobNum in jobNums:
+            if jobNum not in self.getJobNums(active=False, completed=False):
+                # Invalid jobNum
+                invalidJobNums.append(jobNum)
+                continue
+
+            # Check if user is authorized to start job
+            if not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
+                # User is not authorized
+                unauthorizedJobNums.append(jobNum)
+                continue
+
+            # Job is valid and enqueued - set confirmed flag to True, so they can be started when at the front of the queue
+            self.jobQueue[jobNum]['confirmed'] = True
+
+        # Check if there were any invalid jobs
+        if len(invalidJobNums) > 0:
+            invalidJobNumsText = makeNaturalLanguageList(invalidJobNums)
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
             return self.formatError(
                 environ,
                 errorTitle='Invalid job ID',
-                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
+                errorMsg='Invalid job ID: {jobIDs}'.format(jobIDs=invalidJobNums),
                 linkURL='/',
                 linkAction='recreate job'
                 )
-        elif not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
-            # User is not authorized
+
+        # Check if there were any unauthorized jobs
+        if len(unauthorizedJobNums) > 0:
+            # At least one unauthorized job
             return self.unauthorizedHandler(environ, start_fn)
+
+        # All jobs were enqueued hunky dory
+        if len(jobNums) > 1:
+            # If we're starting more than one job, send user to myJobs page
+            start_fn('303 See Other', [('Location','/myJobs')])
         else:
-            # Valid enqueued job - set confirmed flag to True, so it can be started when at the front
-            self.jobQueue[jobNum]['confirmed'] = True
-        start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
+            # IF there's just one job, send user directly to checkProgress page
+            start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNums[0]))])
         return []
+
 
     def removeJob(self, jobNum, waitingPeriod=0):
         # waitingPeriod = amount of time in seconds to wait after job completionTime before removing from queue
@@ -1254,7 +1330,7 @@ class SegmentationServer:
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
                                         and <strong>{epochsAhead} total epochs</strong> \
-                                        remaining. Your job will be enqueued after you confirm it.'
+                                        remaining. Your job will be enqueued after you confirm it.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead, epochsAhead=epochsAhead)
             else:
                 if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
@@ -1544,32 +1620,29 @@ class SegmentationServer:
             )
 
     def cancelJobHandler(self, environ, start_fn):
-        # Get jobNum from URL
-        jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        if jobNum not in self.getJobNums():
-            # Invalid jobNum
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return self.formatError(
-                environ,
-                errorTitle='Invalid job ID',
-                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
-                linkURL='/',
-                linkAction='recreate job'
-            )
-        elif jobNum in self.getJobNums(completed=True):
-            # Job is already finished, can't cancel
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return self.formatError(
-                environ,
-                errorTitle='Cannot terminate completed job',
-                errorMsg='Can\'t terminate job {jobID} because it has already finished processing.'.format(jobID=jobNum),
-                linkURL='/',
-                linkAction='create a new job'
-            )
-        elif not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
-            # User is not authorized
-            return self.unauthorizedHandler(environ, start_fn)
-        else:
+        # Get jobNums from URL
+        jobNums = [int(jobNum) for jobNum in environ['PATH_INFO'].split('/')[2:]]
+
+        invalidJobNums = []
+        alreadyCancelledJobNums = []
+        unauthorizedJobNums = []
+
+        for jobNum in jobNums:
+            if jobNum not in self.getJobNums():
+                # Invalid jobNum
+                invalidJobNums.append(jobNum)
+                continue
+
+            if jobNum in self.getJobNums(completed=True):
+                # Job is already finished, can't cancel
+                alreadyCancelledJobNums.append(jobNum)
+                continue
+
+            if not isWriteAuthorized(getUsername(environ), self.jobQueue[jobNum]['owner']):
+                # User is not authorized
+                unauthorizedJobNums.append(jobNum)
+                continue
+
             # Valid enqueued job - set cancelled flag to True, and
             logger.log(logging.INFO, 'Cancelling job {jobNum}'.format(jobNum=jobNum))
             self.jobQueue[jobNum]['cancelled'] = True
@@ -1581,7 +1654,35 @@ class SegmentationServer:
             self.jobQueue[jobNum]['completionTime'] = now
             if self.jobQueue[jobNum]['job'] is not None:
                 self.jobQueue[jobNum]['job'].msgQueue.put((ServerJob.EXIT, None))
-        start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNum))])
+
+        # Check if there were any invalid job nums
+        if len(invalidJobNums) > 0:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job ID',
+                errorMsg='Invalid job ID: {jobID}'.format(jobID=makeNaturalLanguageList(invalidJobNums)),
+                linkURL='/',
+                linkAction='recreate job'
+            )
+        # Check if there were any already cancelled job num
+        if len(alreadyCancelledJobNums) > 0:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot terminate completed job',
+                errorMsg='Can\'t terminate job {jobID} because it has already finished processing.'.format(jobID=makeNaturalLanguageList(alreadyCancelledJobNums)),
+                linkURL='/',
+                linkAction='create a new job'
+            )
+        # Check if there were any unauthorized job nums
+        if len(unauthorizedJobNums) > 0:
+            return self.unauthorizedHandler(environ, start_fn)
+
+        if len(jobNums) <= 1:
+            start_fn('303 See Other', [('Location','/checkProgress/{jobID}'.format(jobID=jobNums[0]))])
+        else:
+            start_fn('303 See Other', [('Location','/myJobs')])
         return []
 
     def getHumanReadableJobState(self, jobNum):
