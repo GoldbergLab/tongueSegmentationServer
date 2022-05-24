@@ -721,7 +721,7 @@ class SegmentationServer:
                 startTime=None,                         # Time job was started
                 completionTime=None,                    # Time job was completed
                 log=[],                                 # List of log output from job
-                exitCode=ServerJob.INCOMPLETE           # Job exit code
+                exitCode=ServerJob.INCOMPLETE,          # Job exit code
                 paramRecord=paramRecord                 # Record of relevant parameters for posterity
             )
 
