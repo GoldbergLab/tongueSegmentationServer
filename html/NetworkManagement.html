@@ -1,0 +1,71 @@
+<html>
+  <head>
+    {headLinksHTML}
+    <script>
+      var reloadPaused = false;
+      var reloadInterval = {autoReloadInterval};
+      var reloaderID = window.setInterval(reloader, reloadInterval);
+      function reloader() {{
+        if (document.getElementById("reloadCheckbox").checked && !reloadPaused) {{
+          location.reload();
+        }}
+      }}
+      function renameNetwork(oldName) {{
+        reloadPaused = true;
+        var newName = prompt("What would you like to rename "+oldName+" to?", oldName);
+        if (newName != null) {{
+          var reallyRename = confirm('Are you sure you want to rename '+oldName+' to '+newName+'?');
+          if (reallyRename) {{
+            // Load rename page
+            window.location = '/networkManagement/rename/'+oldName+'/'+newName;
+          }} else {{
+            reloadPaused = false;
+          }}
+        }} else {{
+          reloadPaused = false;
+        }}
+      }}
+      function removeNetwork(networkName) {{
+        reloadPaused = true;
+        var reallyRemove = confirm("Are you sure you want to remove the network named '"+networkName+"'? It will be moved to another folder, and will no longer be accessible to this server.");
+        if (reallyRemove) {{
+          // Load rename page
+          window.location = '/networkManagement/remove/'+networkName;
+        }} else {{
+          reloadPaused = false;
+        }}
+      }}
+    </script>
+  </head>
+  <body>
+    {navBarHTML}
+    <div class="section">
+      <div class="container">
+        <h1>Network Management</h1>
+        <h4>Network info:</h4>
+        <div class="row">
+          <div class="three columns"># of networks found:</div>
+          <div class="nine columns"><strong>{numNetworks}</strong></div>
+        </div>
+        <table class="u-full-width">
+          <thead>
+            <tr>
+              <th>Network #</th>
+              <th>Network name</th>
+              <th>Last modified</th>
+              <th>Rename network</th>
+              <th>Remove network</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tbody}
+          </tbody>
+        </table>
+        <div class="row">
+          <div class="three columns">Auto-reload</div>
+          <input class="one column" style="width: 20px; height: 20px;" type="checkbox" id="reloadCheckbox" name="reloadCheckbox" checked>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

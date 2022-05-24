@@ -1,0 +1,253 @@
+<html>
+<head>
+  {headLinksHTML}
+  <script>
+    function updateAugmentParamVisibility() {{
+        var augmentCheck = document.getElementById("augmentData");
+        var augmentParams = document.getElementById("augmentParams");
+        augmentParams.style.display = augmentCheck.checked ? "block" : "none";
+    }}
+  </script>
+</head>
+<body>
+  {navBarHTML}
+  <div class="section">
+    <div class="container">
+      <h1 class="section-heading">
+        Segmentation Processor for Images of Tongues (SPIT)
+      </h1>
+    </div>
+  </div>
+  <div class="section">
+    <div class="container">
+      <div class="row">
+        <h4 class="nine columns"
+            aria-label="Create a network training job.
+              Once all jobs ahead in line are done, your job will automatically start.
+              You do not need to keep the browser window open - it will run independently."
+            data-balloon-pos="down"
+            data-balloon-length="large">
+          Create new network training job:
+        </h4>
+      </div>
+      <form action="/finalizeTrainJob" method="POST">
+        <div class="row">
+          <label class="three columns" for="jobName"
+              aria-label="Enter a name or description of job to make it easier to remember what's going on later."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Job name/description:
+          </label>
+          <input class="nine columns" type="text" id="jobName" name="jobName" value="My job">
+        </div>
+        <div class="row">
+          <label class="three columns" for="rootMountPoint"
+              aria-label="Choose one of the drives/network shares available to the segmentation
+                          server which contains your training data. Normally you will be selecting
+                          a shared network drive."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Root mount point:
+          </label>
+          <select class="nine columns" name="rootMountPoint" id="rootMountPoint">
+          {mopts}
+          </select>
+        </div>
+        <div class="row">
+          <label class="three columns" for="trainingDataPath"
+              aria-label="Specify the path to a training data .mat file. It should contain a struct
+                          with a field called 'imageStack' containing an NxHxW stack of images, and
+                          a field called 'maskStack' containing an NxHxW stack of corresponding
+                          binary masks."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Training data file:
+          </label>
+          <input class="nine columns" type="text" id="trainingDataPath" name="trainingDataPath" value="">
+        </div>
+        <div class="row">
+          <label class="three columns" class="six columns" for="startNetworkName"
+              aria-label="Select a trained neural network to continue training. Choose **RANDOM** if
+                          you wish to start with a fresh new randomized network, rather than an
+                          existing one. If the network you want to use is not in this list, ask the
+                          server administrator to add it to the list of available networks."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Starting neural network name:
+          </label>
+          <select class="nine columns" name="startNetworkName" id="startNetworkName">
+          {nopts}
+          </select>
+        </div>
+        <div class="row">
+          <label class="three columns" for="newNetworkName"
+              aria-label="Specify a filename for the new network that will be trained. Must contain
+                          only valid characters for a filename. The network will be saved in this
+                          server's local networks folder, so it will be immediately accessible to
+                          the server for segmentation."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            New network filename:
+          </label>
+          <input class="nine columns" type="text" id="newNetworkName" name="newNetworkName" value="">
+        </div>
+        <div class="row">
+          <label class="label-body three columns" for="windowsStyle"
+              aria-label="Are the paths you specified above formatted as a Windows path?
+                If you are running Windows, and you copy-pasted the path, choose this option."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Windows-style paths
+          </label>
+          <input class="one column large-radio" type="radio" id="windowsStyle" name="pathStyle" value="windowsStylePaths" checked>
+        </div>
+        <div class="row">
+          <label class="label-body three columns" for="posixStyle"
+              aria-label="Are the paths you specified above formatted as a Mac/Linux path?
+                If you are running Mac OS or Linux, and you copy-pasted the path, choose this option."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Mac/Linux-style paths
+          </label>
+          <input class="one column large-radio" type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
+        </div>
+        <div class="row">
+          <label class="three columns" for="batchSize"
+              aria-label="Specify how many images will be used in each training iteration."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Batch size:
+          </label>
+          <input class="two columns" type="number" id="batchSize" name="batchSize" min="1" step="1" value="10">
+        </div>
+        <div class="row">
+          <label class="three columns" for="numEpochs"
+              aria-label="Number of times the entire dataset will be passed through the network during training.
+                          larger number of epochs will take longer, but may produce a better-trained network
+                          (while also carrying the danger of overfitting). Fewer epochs will be faster, but
+                          may underfit the data."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Number of epochs:
+          </label>
+          <input class="two columns" type="number" id="numEpochs" name="numEpochs" min="1" step="1" value="512">
+        </div>
+        <div class="row">
+          <label class="three columns" for="augmentData"
+              aria-label="Should the training process include automatic data augmentation? If so, the input images and masks
+                          will be randomly transformed using rotations, translations, scaling, and reflections. This can help
+                          combat overfitting."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Randomly augment training data?
+          </label>
+          <input class="two columns large-checkbox" type="checkbox" id="augmentData" name="augmentData" onclick="updateAugmentParamVisibility()" checked>
+        </div>
+
+        <div id="augmentParams">
+          <div class="row">
+            <div class="one column"></div>
+            <label class="three columns" for="rotationRange"
+                aria-label="Data augmentation - rotation range. Specify the range of allowed random rotations to apply to
+                            the training data. Leave blank to disallow rotations.
+                            See https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+                            for more documentation."
+                data-balloon-pos="down"
+                data-balloon-length="fit">
+              Rotation range:
+            </label>
+            <input class="two columns" type="number" id="rotationRange" name="rotationRange" min="0" max="360" step="0.001" value="0">
+          </div>
+          <div class="row">
+            <div class="one column"></div>
+            <label class="three columns" for="widthShiftRange"
+                aria-label="Data augmentation - width shift range. Specify the range of allowed random horizontal shifts to
+                            apply to the training data, expressed as a fraction of the total frame width, from 0 to 1.
+                            See https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+                            for more documentation."
+                data-balloon-pos="down"
+                data-balloon-length="fit">
+              Width shift range:
+            </label>
+            <input class="two columns" type="number" id="widthShiftRange" name="widthShiftRange" min="0" max="1" step="0.001" value="0.1">
+          </div>
+          <div class="row">
+            <div class="one column"></div>
+            <label class="three columns" for="heightShiftRange"
+                aria-label="Data augmentation - height shift range. Specify the range of allowed random vertical shifts to
+                            apply to the training data, expressed as a fraction of the total frame height, from 0 to 1.
+                            See https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+                            for more documentation."
+                data-balloon-pos="down"
+                data-balloon-length="fit">
+              Height shift range:
+            </label>
+            <input class="two columns" type="number" id="heightShiftRange" name="heightShiftRange" min="0" max="1" step="0.001" value="0.3">
+          </div>
+          <div class="row">
+            <div class="one column"></div>
+            <label class="three columns" for="zoomRange"
+                aria-label="Data augmentation - zoom range. Specify the range of allowed random zoom (scaling) to
+                            apply to the training data, expressed as a fraction of the total size, from 0 to 1. For
+                            example, a value of 0.3 would allow random scaling between 70% and 130% of full size.
+                            See https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+                            for more documentation."
+                data-balloon-pos="down"
+                data-balloon-length="fit">
+              Zoom range:
+            </label>
+            <input class="two columns" type="number" id="zoomRange" name="zoomRange" min="0" max="1" step="0.001" value="0.4">
+          </div>
+          <div class="row">
+            <div class="one column"></div>
+            <label class="three columns" for="horizontalFlip"
+                aria-label="Data augmentation - horizontal flip. Specify whether or not to apply random horizontal
+                            reflections to the training data.
+                            See https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+                            for more documentation."
+                data-balloon-pos="down"
+                data-balloon-length="fit">
+              Allow horizontal flips?
+            </label>
+            <input class="two columns large-checkbox" type="checkbox" id="horizontalFlip" name="horizontalFlip" checked>
+          </div>
+          <div class="row">
+            <div class="one column"></div>
+            <label class="three columns" for="verticalFlip"
+                aria-label="Data augmentation - vertical flip. Specify whether or not to apply random vertical
+                            reflections to the training data.
+                            See https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
+                            for more documentation."
+                data-balloon-pos="down"
+                data-balloon-length="fit">
+              Allow vertical flips?
+            </label>
+            <input class="two columns large-checkbox" type="checkbox" id="verticalFlip" name="verticalFlip" checked>
+          </div>
+        </div>
+
+        <div class="row">
+          <label class="three columns" for="generateValidationPreview"
+              aria-label="Should the server test the model and generate a segmentation image,
+                allowing you to see a sample of the training progress live in your browser?
+                It adds a bit of extra processing time."
+              data-balloon-pos="down"
+              data-balloon-length="fit">
+            Generate inter-epoch validation preview?
+          </label>
+          <input class="two columns large-checkbox" type="checkbox" id="generateValidationPreview" name="generateValidationPreview" checked>
+        </div>
+        <div aria-label="Create the network training job with the specified parameters.
+              You will be asked to confirm the parameters before the job is enqueued."
+            data-balloon-pos="down"
+            data-balloon-length="fit">
+          <input class="button button-primary u-full-width" type="submit" value="Initialize training job">
+        </div>
+      </form>
+    </div>
+  </div>
+</body onload="updateAugmentParamVisibility()">
+<script>
+  updateAugmentParamVisibility();
+</script>
+</html>

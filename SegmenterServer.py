@@ -3,7 +3,6 @@ from wsgi_basic_auth import BasicAuth
 import os
 if os.name == 'nt':
     import win32net
-import traceback
 import logging
 import datetime as dt
 import time
@@ -13,8 +12,9 @@ import urllib
 import requests
 from pathlib import Path, PureWindowsPath, PurePosixPath
 import fnmatch
-from ServerJob import ServerJob
+from ServerJob import ServerJob, SegmentationJob, TrainJob
 from TongueSegmentation import SegSpec
+from NetworkTraining import createDataAugmentationParameters
 import queue
 import numpy as np
 from scipy.io import loadmat
@@ -29,6 +29,8 @@ import re
 
 # Tensorflow barfs a ton of debug output - restrict this to only warnings/errors
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+
+LOGS_SUBFOLDER = 'logs'
 
 def initializeLogger():
     logger = logging.getLogger(__name__)
@@ -52,30 +54,39 @@ def initializeLogger():
     # logger.addHandler(ch)
     return logger
 
+logger = initializeLogger()
+
+TRAIN_TYPE = 'train'
+SEGMENT_TYPE = 'segment'
+
 NEURAL_NETWORK_EXTENSIONS = ['.h5', '.hd5', '.hdf5']
 NETWORKS_SUBFOLDER = 'networks'
-LOGS_SUBFOLDER = 'logs'
 STATIC_SUBFOLDER = 'static'
 ROOT = '.'
-PRIVATE_FOLDER = 'private'
+PRIVATE_SUBFOLDER = 'private'
+AUTH_NAME = 'Auth.json'
+REMOVED_NETWORKS_SUBFOLDER = 'deleted'
+
+DEFAULT_MOUNT_PATH = 'X:'
 
 DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
 DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
+RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
 
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
-ROOT_PATH = Path(ROOT)
+ROOT_PATH = Path(ROOT).resolve()
 NETWORKS_FOLDER = ROOT_PATH / NETWORKS_SUBFOLDER
+REMOVED_NETWORKS_FOLDER = NETWORKS_FOLDER / REMOVED_NETWORKS_SUBFOLDER
 LOGS_FOLDER = ROOT_PATH / LOGS_SUBFOLDER
 STATIC_FOLDER = ROOT_PATH / STATIC_SUBFOLDER
-REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER]
+PRIVATE_FOLDER = ROOT_PATH / PRIVATE_SUBFOLDER
+REQUIRED_SUBFOLDERS = [NETWORKS_FOLDER, LOGS_FOLDER, STATIC_FOLDER, PRIVATE_FOLDER, REMOVED_NETWORKS_FOLDER]
 for reqFolder in REQUIRED_SUBFOLDERS:
     if not reqFolder.exists():
         logger.log(logging.INFO, 'Creating required directory: {reqDir}'.format(reqDir=reqFolder))
         reqFolder.mkdir()
 
-AUTH_FILE = PRIVATE_FOLDER / Path('Auth.json')
-
-logger = initializeLogger()
+AUTH_FILE = PRIVATE_FOLDER / AUTH_NAME
 
 def validPassword(password):
     valid = re.search('[a-zA-Z]', password) is not None and re.search('[0-9]', password) is not None and len(password) >= 6 and len(password) <= 15
@@ -98,9 +109,13 @@ def changePassword(user, currentPass, newPass):
         reason = "Current password incorrect"
     return passwordChanged, reason
 
-
 def loadAuth():
     try:
+        if not AUTH_FILE.is_file():
+            # No auth file found - create default one
+            logger.log(logging.WARNING, "No authentication file found - creating a default auth file at {f}. It is recommended to change the default passwords.".format(f=AUTH_FILE))
+            with open(AUTH_FILE, 'w') as f:
+                f.write(json.dumps(DEFAULT_AUTH))
         with open(AUTH_FILE, 'r') as f:
             userData = json.loads(f.read())
     except:
@@ -111,10 +126,13 @@ def loadAuth():
     logger.log(logging.INFO, "Authentication reloaded.")
     return users, user_lvls
 
-USERS, USER_LVLS = loadAuth()
-
 BASE_USER='glab'
 ADMIN_USER='admin'
+DEFAULT_PASSWORD = 'password'
+# DEFAULT_AUTH is used to create a default auth file if none is found
+DEFAULT_AUTH = {BASE_USER:[DEFAULT_PASSWORD, 0], ADMIN_USER:[DEFAULT_PASSWORD, 2]}
+
+USERS, USER_LVLS = loadAuth()
 
 # How often monitoring pages auto-reload, in ms
 AUTO_RELOAD_INTERVAL=5000
@@ -218,21 +236,26 @@ class SegmentationServer:
     def __init__(self, port=80, webRoot='.'):
         self.port = port
         self.routes = [
-            ('/static/*',           self.staticHandler),
-            ('/finalizeJob',        self.finalizeJobHandler),
-            ('/confirmJob/*',       self.confirmJobHandler),
-            ('/checkProgress/*',    self.checkProgressHandler),
-            ('/updateQueue',        self.updateJobQueueHandler),
-            ('/cancelJob/*',        self.cancelJobHandler),
-            ('/serverManagement',   self.serverManagementHandler),
-            ('/restartServer',      self.restartServerHandler),
-            ('/maskPreview/*',      self.getMaskPreviewHandler),
-            ('/myJobs',             self.myJobsHandler),
-            ('/help',               self.helpHandler),
-            ('/changePassword',     self.changePasswordHandler),
-            ('/finalizePassword',   self.finalizePasswordHandler),
-            ('/reloadAuth',         self.reloadAuthHandler),
-            ('/',                   self.rootHandler)
+            ('/static/*',                   self.staticHandler),
+            ('/finalizeSegmentationJob',    self.finalizeSegmentationJobHandler),
+            ('/finalizeTrainJob',           self.finalizeTrainJobHandler),
+            ('/confirmJob/*',               self.confirmJobHandler),
+            ('/checkProgress/*',            self.checkProgressHandler),
+            ('/updateQueue',                self.updateJobQueueHandler),
+            ('/cancelJob/*',                self.cancelJobHandler),
+            ('/serverManagement',           self.serverManagementHandler),
+            ('/restartServer',              self.restartServerHandler),
+            ('/maskPreview/*',              self.getMaskPreviewHandler),
+            ('/myJobs',                     self.myJobsHandler),
+            ('/help',                       self.helpHandler),
+            ('/changePassword',             self.changePasswordHandler),
+            ('/finalizePassword',           self.finalizePasswordHandler),
+            ('/reloadAuth',                 self.reloadAuthHandler),
+            ('/train',                      self.trainHandler),
+            ('/networkManagement',          self.networkManagementHandler),
+            ('/networkManagement/rename/*', self.networkRenameHandler),
+            ('/networkManagement/remove/*', self.networkRemoveHandler),
+            ('/',                           self.rootHandler)
         ]
         self.webRootPath = Path(webRoot).resolve()
         self.maxActiveJobs = 1          # Maximum # of jobs allowed to be running at once
@@ -271,7 +294,7 @@ class SegmentationServer:
         else:
             message = ''
 
-        with open('NavBar.html', 'r') as f:
+        with open('html/NavBar.html', 'r') as f:
             navBarHTML = f.read()
             jobsRemaining = self.countJobsRemaining()
             videosRemaining = self.countVideosRemaining()
@@ -281,7 +304,7 @@ class SegmentationServer:
                 serverStatus = "Status: idle"
             user = getUsername(environ)
             navBarHTML = navBarHTML.format(user=user, serverStatus=serverStatus)
-        with open('HeadLinks.html', 'r') as f:
+        with open('html/HeadLinks.html', 'r') as f:
             headLinksHTML = f.read()
             headLinksHTML = headLinksHTML.format(message=message)
 
@@ -295,7 +318,7 @@ class SegmentationServer:
         return [html.encode('utf-8')]
 
     def formatError(self, environ, errorTitle='Error', errorMsg='Unknown error!', linkURL='/', linkAction='retry job creation'):
-        return self.formatHTML(environ, 'Error.html', errorTitle=errorTitle, errorMsg=errorMsg, linkURL=linkURL, linkAction=linkAction)
+        return self.formatHTML(environ, 'html/Error.html', errorTitle=errorTitle, errorMsg=errorMsg, linkURL=linkURL, linkAction=linkAction)
 
     def getMountList(self, includePosixLocal=False):
         mounts = {}
@@ -332,17 +355,73 @@ class SegmentationServer:
             raise OSError('This software is only compatible with POSIX or Windows')
         return mounts
 
-    def getNeuralNetworkList(self):
+    def removeNeuralNetwork(self, name):
+        # Move a neural network file out of the main networks directory into
+        #   the "deleted" subdirectory so they won't be listed any more.
+        oldPath = NETWORKS_FOLDER / name
+        newPath = REMOVED_NETWORKS_FOLDER / name
+        self.checkNetworkPathSafety(oldPath)
+        self.checkNetworkPathSafety(newPath)
+        if oldPath.is_file():
+            logger.log(logging.INFO, 'Removing net by moving it from \"{oldPath}\" to \"{newPath}\"'.format(oldPath=oldPath, newPath=newPath))
+            if newPath.is_file():
+                # Deleted network already exists in deleted folder
+                os.remove(newPath)
+            os.rename(oldPath, newPath)
+        else:
+            raise FileNotFoundError('Could not find file {f}'.format(name))
+
+    def checkNetworkPathSafety(self, path):
+        if (not NETWORKS_FOLDER in path.resolve().parents):
+            # Ensure both paths are children of NETWORKS_FOLDER, to prevent hijinks
+            raise OSError('Disallowed network path accessed: {p} - permission denied.'.format(p=path))
+
+    def renameNeuralNetwork(self, oldName, newName, overwrite=False):
+        # Rename a neural network within the neural networks directory.
+        oldPath = NETWORKS_FOLDER / oldName
+        newPath = NETWORKS_FOLDER / newName
+        self.checkNetworkPathSafety(oldPath)
+        self.checkNetworkPathSafety(newPath)
+        if not oldPath.is_file():
+            return False, 'Not a file'
+        if newPath.is_file():
+            if not overwrite:
+                return False, 'New name already exists'
+        else:
+            logger.log(logging.INFO, 'Renaming net \"{oldPath}\" to \"{newPath}\"'.format(oldPath=oldPath, newPath=newPath))
+            os.rename(oldPath, newPath)
+            return True, None
+
+    def getNeuralNetworkList(self, namesOnly=False, includeTimestamps=False):
         # Generate a list of available neural networks
         p = Path('.') / NETWORKS_SUBFOLDER
         networks = []
+        timestamps = []
         for item in p.iterdir():
             if item.suffix in NEURAL_NETWORK_EXTENSIONS:
                 # This is a neural network file
-                networks.append(item.name)
-        return networks
+                if namesOnly:
+                    networks.append(item.name)
+                else:
+                    networks.append(item)
+                if includeTimestamps:
+                    ts = item.stat().st_mtime
+                    t = dt.datetime.fromtimestamp(ts)
+                    timestamps.append(t)
+        if includeTimestamps:
+            return networks, timestamps
+        else:
+            return networks
+
+    def createBulletedList(d):
+        # Create an HTML string representing a bulleted list from a dictionary
+        html = '<ul>\n{items}\n</ul>'.format(
+            items = '\n'.join(['<li>{key}: {val}</li>'.format(key=key, val=d[key]) for key in d])
+        )
+        return html
 
     def createOptionList(self, optionValues, defaultValue=None, optionNames=None):
+        # Create an HTML string representing a set of drop-down list options
         if optionNames is None:
             optionNames = optionValues
         options = []
@@ -362,7 +441,7 @@ class SegmentationServer:
         if len(URLparts) < 2:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            with open('html/Error.html', 'r') as f: htmlTemplate = f.read()
             return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
@@ -407,7 +486,7 @@ class SegmentationServer:
         else:
             logger.log(logging.ERROR, 'Could not find that static file: {p}'.format(p=requestedStaticFilePath))
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            with open('Error.html', 'r') as f: htmlTemplate = f.read()
+            with open('html/Error.html', 'r') as f: htmlTemplate = f.read()
             return [htmlTemplate.format(
                 errorTitle='Static file not found',
                 errorMsg='Static file {name} not found'.format(name=requestedStaticFileRelativePath),
@@ -434,16 +513,30 @@ class SegmentationServer:
         completedVideosAhead = 0
         queuedVideosAhead = 0
         for jobNum in self.jobQueue:
-            if beforeJobNum is not None and jobNum == beforeJobNum:
-                # This is the specified job num - stop, don't count any more
-                break
-            if self.jobQueue[jobNum]['completionTime'] is None:
-                completedVideosAhead += len(self.jobQueue[jobNum]['completedVideoList'])
-                queuedVideosAhead += len(self.jobQueue[jobNum]['videoList'])
+            if self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
+                # Job is a segmentation job, not a training job.
+                if beforeJobNum is not None and jobNum == beforeJobNum:
+                    # This is the specified job num - stop, don't count any more
+                    break
+                if self.jobQueue[jobNum]['completionTime'] is None:
+                    completedVideosAhead += len(self.jobQueue[jobNum]['completedVideoList'])
+                    queuedVideosAhead += len(self.jobQueue[jobNum]['videoList'])
         videosAhead = queuedVideosAhead - completedVideosAhead
         return videosAhead
 
-    def finalizeJobHandler(self, environ, start_fn):
+    def countEpochsRemaining(self, beforeJobNum=None):
+        epochsAhead = 0
+        for jobNum in self.jobQueue:
+            if self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
+                # Job is a training job, not a segmentation job.
+                if beforeJobNum is not None and jobNum == beforeJobNum:
+                    # This is the specified job num - stop, don't count any more
+                    break
+                if self.jobQueue[jobNum]['completionTime'] is None:
+                    epochsAhead += self.jobQueue[jobNum]['numEpochs'] - self.jobQueue[jobNum]['lastEpochNum']
+        return epochsAhead
+
+    def finalizeSegmentationJobHandler(self, environ, start_fn):
         # Display page showing what job will be, and offering opportunity to go ahead or cancel
         postDataRaw = environ['wsgi.input'].read().decode('utf-8')
         postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
@@ -556,10 +649,13 @@ class SegmentationServer:
 
         jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
         videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+        epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
 
         self.jobQueue[jobNum] = dict(
             job=None,                               # Job process object
             jobName=jobName,                        # Name/description of job
+            jobType=SEGMENT_TYPE,                   # Type of job (segment or train)
+            jobClass=SegmentationJob,               # Reference to job class
             owner=getUsername(environ),             # Owner of job, has special privileges
             jobNum=jobNum,                          # Job ID
             confirmed=False,                        # Has user confirmed params yet
@@ -599,7 +695,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'FinalizeJob.html',
+            'html/FinalizeSegmentationJob.html',
             videoList="\n".join(["<li>{v}</li>".format(v=v) for v in videoList]),
             topNetworkName=topNetworkPath.name,
             botNetworkName=botNetworkPath.name,
@@ -614,11 +710,186 @@ class SegmentationServer:
             jobID=jobNum,
             jobName=jobName,
             jobsAhead=jobsAhead,
-            videosAhead=videosAhead
+            videosAhead=videosAhead,
+            epochsAhead=epochsAhead
+        )
+
+    def finalizeTrainJobHandler(self, environ, start_fn):
+        # Display page showing what job will be, and offering opportunity to go ahead or cancel
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        try:
+            rootMountPoint = postData['rootMountPoint'][0]
+            startNetworkName = postData['startNetworkName'][0]
+            if startNetworkName == RANDOM_TRAINING_NETWORK_NAME:
+                startNetworkPath = None
+            else:
+                startNetworkPath = NETWORKS_FOLDER / startNetworkName
+            newNetworkName = postData['newNetworkName'][0]
+            newNetworkPath = NETWORKS_FOLDER / newNetworkName
+            if newNetworkPath.is_file():
+                # Chosen network name is already taken
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+                return self.formatError(
+                    environ,
+                    errorTitle='Network name already in use',
+                    errorMsg='A network by the name \"{newName}\" already exists. Please choose a different name, or rename/remove the preexisting network first.'.format(newName=newNetworkName),
+                    linkURL='/networkManagement',
+                    linkAction='go to network management, or use your browser\'s back button to go back to your new train job page.'
+                )
+            trainingDataPath = Path(postData['trainingDataPath'][0])
+            pathStyle = postData['pathStyle'][0]
+            batchSize = int(postData['batchSize'][0])
+            numEpochs = int(postData['numEpochs'][0])
+            if 'augmentData' in postData:
+                augmentData = True
+                rotationRange = float(postData['rotationRange'][0])
+                widthShiftRange = float(postData['widthShiftRange'][0])
+                heightShiftRange = float(postData['heightShiftRange'][0])
+                zoomRange = float(postData['zoomRange'][0])
+                if 'horizontalFlip' in postData:
+                    horizontalFlip = True
+                else:
+                    horizontalFlip = False
+                if 'verticalFlip' in postData:
+                    verticalFlip = True
+                else:
+                    verticalFlip = False
+            else:
+                augmentData = False
+                rotationRange = None
+                widthShiftRange = None
+                heightShiftRange = None
+                zoomRange = None
+                horizontalFlip = None
+                verticalFlip = None
+
+            if 'generateValidationPreview' in postData:
+                generateValidationPreview = True
+            else:
+                generateValidationPreview = False
+
+            jobName = postData['jobName'][0]
+        except KeyError:
+            # Missing one of the postData arguments
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Missing parameter',
+                errorMsg='A required field is missing. Please retry with all required fields filled in.',
+                linkURL='/',
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
+        augmentationParameters = createDataAugmentationParameters(
+            rotation_range=rotationRange,
+            width_shift_range=widthShiftRange,
+            height_shift_range=heightShiftRange,
+            zoom_range=zoomRange,
+            horizontal_flip=horizontalFlip,
+            vertical_flip=verticalFlip
+        )
+
+        # Re-root training data path
+        reRootedTrainingDataPath = reRootDirectory(rootMountPoint, pathStyle, trainingDataPath)
+
+        # Check if all parameters are valid. If not, display error and offer to go back
+        valid = True
+        errorMessages = []
+        if not (trainingDataPath.suffix.lower() == ".mat"):
+            valid = False
+            errorMessages.append('Training data file provided must be a .mat file. Instead, you provided {trainingDataPath}.'.format(trainingDataPath=trainingDataPath))
+        if not reRootedTrainingDataPath.is_file():
+            valid = False
+            errorMessages.append('Training data file not found: {reRootedTrainingDataPath}. Hint: Did you pick the right root?'.format(reRootedTrainingDataPath=reRootedTrainingDataPath))
+        if startNetworkPath is not None and not startNetworkPath.is_file():
+            valid = False
+            errorMessages.append('Starting network file not found: {startNetworkPath}'.format(startNetworkPath=startNetworkPath))
+        if newNetworkPath.suffix.lower() not in NEURAL_NETWORK_EXTENSIONS:
+            valid = False
+            errorMessages.append('Invalid network file extension. Please use one of the following file extensions to name your network: {e}'.format(e=', '.join(NEURAL_NETWORK_EXTENSIONS)))
+
+        if not valid:
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job parameter',
+                errorMsg="<br/>".join(errorMessages),
+                linkURL='/',
+                linkAction='return to job creation page (or use browser back button)'
+                )
+
+        # Add job parameters to queue
+        jobNum = SegmentationServer.newJobNum()
+
+        jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
+        videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+        epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
+
+        self.jobQueue[jobNum] = dict(
+            job=None,                                       # Job process object
+            jobName=jobName,                                # Name/description of job
+            jobType=TRAIN_TYPE,                             # Type of job (segment or train)
+            jobClass=TrainJob,                              # Reference to job class
+            owner=getUsername(environ),                     # Owner of job, has special privileges
+            jobNum=jobNum,                                  # Job ID
+            confirmed=False,                                # Has user confirmed params yet
+            cancelled=False,                                # Has the user cancelled this job?
+            startNetworkPath=startNetworkPath,              # Either path to an existing network to train, or None
+            newNetworkPath=newNetworkPath,                  # Path to save the newly trained network to
+            batchSize=batchSize,                            # Size of a training batch
+            numEpochs=numEpochs,                            # Number of epochs in the training session
+            augmentData=augmentData,                        # Should training dataset be randomly augmented?
+            augmentationParameters=augmentationParameters,  # Dictionary of augmentation parameters
+            trainingDataPath=reRootedTrainingDataPath,      # Path to the .mat file containing the training data
+            generatePreview=generateValidationPreview,      # Should we generate validation results between each epoch?
+            lastEpochNum=0,                                 # Last completed epoch number
+            loss=[],                                        # List of the calculated loss after each epoch
+            accuracy=[],                                    # List of the calculated accuracy after each epoch
+            times=[],                                       # List of epoch completion times
+            creationTime=time.time_ns(),                    # Time job was created
+            startTime=None,                                 # Time job was started
+            completionTime=None,                            # Time job was completed
+            log=[],                                         # List of log output from job
+            exitCode=ServerJob.INCOMPLETE                   # Job exit code
+        )
+
+        if startNetworkPath is None:
+            startNetworkNameText = "Randomized (naive) network"
+        else:
+            startNetworkNameText = str(startNetworkName)
+        if augmentData:
+            augmentDataText = 'Yes'
+        else:
+            augmentDataText = 'No'
+
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'html/FinalizeTrainJob.html',
+            startNetworkName=startNetworkNameText,
+            newNetworkName=newNetworkName,
+            batchSize=batchSize,
+            numEpochs=numEpochs,
+            augmentData=augmentDataText,
+            rotationRange=augmentationParameters['rotation_range'],
+            widthShiftRange=augmentationParameters['width_shift_range'],
+            heightShiftRange=augmentationParameters['height_shift_range'],
+            zoomRange=augmentationParameters['zoom_range'],
+            horizontalFlip=augmentationParameters['horizontal_flip'],
+            verticalFlip=augmentationParameters['vertical_flip'],
+            generatePreview=generateValidationPreview,
+            jobID=jobNum,
+            jobName=jobName,
+            jobsAhead=jobsAhead,
+            videosAhead=videosAhead,
+            epochsAhead=epochsAhead
         )
 
     def startJob(self, jobNum):
-        self.jobQueue[jobNum]['job'] = ServerJob(
+        # Instantiate new job object of the appropriate class
+        self.jobQueue[jobNum]['job'] = self.jobQueue[jobNum]['jobClass'](
             verbose = 1,
             logger=logger,
             **self.jobQueue[jobNum]
@@ -681,6 +952,10 @@ class SegmentationServer:
         return jobNums
 
     def confirmJobHandler(self, environ, start_fn):
+        # On either finalize job page, if the user clicks "confirm", the request
+        #   goes to this handler, which changes the "confirmed" state of the job
+        #   to True.
+
         # Get jobNum from URL
         jobNum = int(environ['PATH_INFO'].split('/')[-1])
 #        logger.log(logging.INFO, 'getJobNums(active=False, completed=False) - is job {jobNum} ready for confirming?'.format(jobNum=jobNum))
@@ -782,6 +1057,7 @@ class SegmentationServer:
                 break;
 
     def updateJobProgress(self, jobNum):
+        # Retrieve and record any progress reports sent by the specified job
         if jobNum in self.jobQueue and self.jobQueue[jobNum]['job'] is not None:
             while True:
                 try:
@@ -790,12 +1066,26 @@ class SegmentationServer:
                     self.jobQueue[jobNum]['log'].extend(progress['log'])
                     # Get updated exit code from job
                     self.jobQueue[jobNum]['exitCode'] = progress['exitCode']
-                    # Get the path to the last video the job has completed
-                    if progress['lastCompletedVideoPath'] is not None:
-                        self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
-                    # Get the time when the last video started processing
-                    if progress['lastProcessingStartTime'] is not None:
-                        self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                    if self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
+                        # Get the path to the last video the job has completed
+                        if progress['lastCompletedVideoPath'] is not None:
+                            self.jobQueue[jobNum]['completedVideoList'].append(progress['lastCompletedVideoPath'])
+                        # Get the time when the last video started processing
+                        if progress['lastProcessingStartTime'] is not None:
+                            self.jobQueue[jobNum]['times'].append(progress['lastProcessingStartTime'])
+                    elif self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
+                        # Get the last completed epoch number
+                        if progress['lastEpochNum'] is not None:
+                            self.jobQueue[jobNum]['lastEpochNum'] = progress['lastEpochNum']
+                        # Get the time when the last epoch completed
+                        if progress['lastEpochTime'] is not None:
+                            self.jobQueue[jobNum]['times'].append(progress['lastEpochTime'])
+                        if progress['loss'] is not None:
+                            self.jobQueue[jobNum]['loss'].append(progress['loss'])
+                        if progress['accuracy'] is not None:
+                            self.jobQueue[jobNum]['accuracy'].append(progress['accuracy'])
+                    else:
+                        raise ValueError('Unknown type: {t}'.format(t=self.jobQueue[jobNum]['jobType']))
                 except queue.Empty:
                     # Got all progress
                     break
@@ -846,63 +1136,7 @@ class SegmentationServer:
         with preview.open('rb') as f:
             return [f.read()]
 
-    def checkProgressHandler(self, environ, start_fn):
-        # Get jobNum from URL
-        jobNum = int(environ['PATH_INFO'].split('/')[-1])
-        allJobNums = self.getJobNums()
-#        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
-        if jobNum not in allJobNums:
-            # Invalid jobNum
-            start_fn('404 Not Found', [('Content-Type', 'text/html')])
-            return self.formatError(
-                environ,
-                errorTitle='Invalid job ID',
-                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
-                linkURL='/',
-                linkAction='create a new job'
-                )
-        if self.jobQueue[jobNum]['job'] is not None:
-            # Job has started. Check its state
-            jobState = self.jobQueue[jobNum]['job'].publishedStateVar.value
-            jobStateName = ServerJob.stateList[jobState]
-            # Get all pending updates on its progress
-            self.updateJobProgress(jobNum)
-        else:
-            # Job has not started
-            jobStateName = "ENQUEUED"
-
-        # Get some parameters about job ready for display
-        binaryThreshold = self.jobQueue[jobNum]['binaryThreshold']
-        maskSaveDirectory = self.jobQueue[jobNum]['maskSaveDirectory']
-        segSpec = self.jobQueue[jobNum]['segSpec']
-        topNetworkName = segSpec.getNetworkPath('Top').name
-        botNetworkName = segSpec.getNetworkPath('Bot').name
-        topOffset = segSpec.getYOffset('Top')
-        topHeight = segSpec.getHeight('Top')
-        botHeight = segSpec.getHeight('Bot')
-        topWidth = segSpec.getWidth('Top')
-        botWidth = segSpec.getWidth('Bot')
-        if topHeight is None:
-            topHeightText = "Use network size"
-        else:
-            topHeightText = str(topHeight)
-        if botHeight is None:
-            botHeightText = "Use network size"
-        else:
-            botHeightText = str(botHeight)
-
-        if topWidth is None:
-            topWidthText = "Use network size"
-        else:
-            topWidthText = str(topWidth)
-        if botWidth is None:
-            botWidthText = "Use network size"
-        else:
-            botWidthText = str(botWidth)
-
-        topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
-        botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
-
+    def getJobTimeStats(self, jobNum):
         creationTime = ""
         startTime = "Not started yet"
         completionTime = "Not complete yet"
@@ -913,17 +1147,15 @@ class SegmentationServer:
         if self.jobQueue[jobNum]['completionTime'] is not None:
             completionTime = dt.datetime.fromtimestamp(self.jobQueue[jobNum]['completionTime']/1000000000).strftime(HTML_DATE_FORMAT)
 
-        numVideos = len(self.jobQueue[jobNum]['videoList'])
-        numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-        percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
         if len(self.jobQueue[jobNum]['times']) > 1:
             deltaT = np.diff(self.jobQueue[jobNum]['times'])/1000000000
             meanTime = np.mean(deltaT)
-            meanTimeStr = "{meanTime:.1f}".format(meanTime=meanTime)
+            meanTimeStr = "{meanTime:.2f}".format(meanTime=meanTime)
             timeConfInt = np.std(deltaT)*1.96
-            timeConfIntStr = "{timeConfInt:.1f}".format(timeConfInt=timeConfInt)
+            timeConfIntStr = "{timeConfInt:.2f}".format(timeConfInt=timeConfInt)
             if self.jobQueue[jobNum]['completionTime'] is None:
-                estimatedSecondsRemaining = (numVideos - numCompletedVideos) * meanTime
+                numTasks, numCompletedTasks = self.getJobProgress(jobNum)
+                estimatedSecondsRemaining = (numTasks - numCompletedTasks) * meanTime
                 days, remainder = divmod(estimatedSecondsRemaining, 86400)
                 hours, remainder = divmod(remainder, 3600)
                 minutes, seconds = divmod(remainder, 60)
@@ -950,10 +1182,9 @@ class SegmentationServer:
             timeConfIntStr = "Unknown"
             estimatedTimeRemaining = "Unknown"
 
-        completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in self.jobQueue[jobNum]['completedVideoList']])
-        if len(completedVideoListHTML.strip()) == 0:
-            completedVieoListHTML = "None"
+        return creationTime, startTime, completionTime, meanTime, meanTimeStr, timeConfInt, timeConfIntStr, estimatedTimeRemaining
 
+    def getJobStateText(self, jobNum):
         exitCode = self.jobQueue[jobNum]['exitCode']
         stateDescription = ''
         processDead = "true"
@@ -962,6 +1193,7 @@ class SegmentationServer:
             if not self.isStarted(jobNum):
                 jobsAhead = self.countJobsRemaining(beforeJobNum=jobNum)
                 videosAhead = self.countVideosRemaining(beforeJobNum=jobNum)
+                epochsAhead = self.countEpochsRemaining(beforeJobNum=jobNum)
                 if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
                     stateDescription = 'This job has been cancelled.'
@@ -969,17 +1201,19 @@ class SegmentationServer:
                     exitCodePhrase = 'is enqueued, but not started.'
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
+                                        and <strong>{epochsAhead} total epochs</strong> \
                                         remaining. Your job will be enqueued to start as soon \
-                                        as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead)
+                                        as any/all previous jobs are done.'.format(jobsAhead=jobsAhead, videosAhead=videosAhead, epochsAhead=epochsAhead)
                 else:
                     exitCodePhrase = 'has not been confirmed yet. <form action="/confirmJob/{jobID}"><input class="button button-primary" type="submit" value="Confirm and enqueue job" /></form>'.format(jobID=jobNum)
                     stateDescription = '<br/>There are <strong>{jobsAhead} jobs</strong> \
                                         ahead of you with <strong>{videosAhead} total videos</strong> \
+                                        and <strong>{epochsAhead} total epochs</strong> \
                                         remaining. Your job will be enqueued after you confirm it.'
             else:
                 if self.isCancelled(jobNum):
                     exitCodePhrase = 'has been cancelled.'
-                    stateDescription = 'This job has been cancelled, and will stop after the current video is complete. All existing masks will remain in place. Stand by...'
+                    stateDescription = 'This job has been cancelled, and will stop after the current task is complete. All existing output will remain in place. Stand by...'
                 else:
                     exitCodePhrase = 'is <strong>in progress</strong>!'
         elif self.isSucceeded(jobNum):
@@ -992,67 +1226,207 @@ class SegmentationServer:
         else:
             exitCodePhrase = 'is in an unknown exit code state...'
 
-        logHTML = self.formatLogHTML(self.jobQueue[jobNum]['log'])
+        return processDead, exitCodePhrase, stateDescription
 
-        owner = self.jobQueue[jobNum]['owner']
+    def checkProgressHandler(self, environ, start_fn):
+        # Get jobNum from URL
+        jobNum = int(environ['PATH_INFO'].split('/')[-1])
+        allJobNums = self.getJobNums()
+#        logger.log(logging.INFO, 'jobNum={jobNum}, allJobNums={allJobNums}, jobQueue={jobQueue}'.format(jobNum=jobNum, allJobNums=allJobNums, jobQueue=self.jobQueue))
+        if jobNum not in allJobNums:
+            # Invalid jobNum
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Invalid job ID',
+                errorMsg='Invalid job ID {jobID}'.format(jobID=jobNum),
+                linkURL='/',
+                linkAction='create a new job'
+                )
+
+        jobEntry = self.jobQueue[jobNum]
+
+        if jobEntry['job'] is not None:
+            # Job has started. Check its state
+            jobState = jobEntry['job'].publishedStateVar.value
+            jobStateName = ServerJob.stateList[jobState]
+            # Get all pending updates on its progress
+            self.updateJobProgress(jobNum)
+        else:
+            # Job has not started
+            jobStateName = "ENQUEUED"
+
+        creationTime, startTime, completionTime, meanTime, meanTimeStr, timeConfInt, timeConfIntStr, estimatedTimeRemaining = self.getJobTimeStats(jobNum)
+
+        processDead, exitCodePhrase, stateDescription = self.getJobStateText(jobNum)
+
+        numTasks, numCompletedTasks = self.getJobProgress(jobNum)
+        percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+        logHTML = self.formatLogHTML(jobEntry['log'])
+
+        owner = jobEntry['owner']
         if owner == getUsername(environ):
             owner = owner + " (you)"
 
-        generatePreview = self.jobQueue[jobNum]['generatePreview']
+        generatePreview = jobEntry['generatePreview']
         if not generatePreview:
             hidePreview = "hidden"
         else:
             hidePreview = ""
 
-        skipExisting = self.jobQueue[jobNum]['skipExisting']
+        if jobEntry['jobType'] == SEGMENT_TYPE:
+            # Get some parameters about job ready for display
+            completedVideoListHTML = "\n".join(["<li>{v}</li>".format(v=v) for v in jobEntry['completedVideoList']])
+            if len(completedVideoListHTML.strip()) == 0:
+                completedVieoListHTML = "None"
 
-        start_fn('200 OK', [('Content-Type', 'text/html')])
-        with open('CheckProgress.html', 'r') as f: htmlTemplate = f.read()
-        return self.formatHTML(
-            environ,
-            'CheckProgress.html',
-            meanTime=meanTimeStr,
-            confInt=timeConfIntStr,
-            videoList=completedVideoListHTML,
-            jobStateName=jobStateName,
-            jobNum=jobNum,
-            estimatedTimeRemaining=estimatedTimeRemaining,
-            jobName=self.jobQueue[jobNum]['jobName'],
-            owner=owner,
-            creationTime=creationTime,
-            startTime=startTime,
-            completionTime=completionTime,
-            exitCodePhrase=exitCodePhrase,
-            logHTML=logHTML,
-            percentComplete=percentComplete,
-            numComplete=numCompletedVideos,
-            numTotal=numVideos,
-            stateDescription=stateDescription,
-            processDead=processDead,
-            binaryThreshold=binaryThreshold,
-            maskSaveDirectory=maskSaveDirectory,
-            topNetworkName=topNetworkName,
-            botNetworkName=botNetworkName,
-            topOffset=topOffset,
-            topHeight=topHeightText,
-            botHeight=botHeightText,
-            topWidth=topWidthText,
-            botWidth=botWidthText,
-            generatePreview=generatePreview,
-            skipExisting=skipExisting,
-            topMaskPreviewSrc=topMaskPreviewSrc,
-            botMaskPreviewSrc=botMaskPreviewSrc,
-            autoReloadInterval=AUTO_RELOAD_INTERVAL,
-            hidePreview=hidePreview
-        )
+            binaryThreshold = jobEntry['binaryThreshold']
+            maskSaveDirectory = jobEntry['maskSaveDirectory']
+            segSpec = jobEntry['segSpec']
+            topNetworkName = segSpec.getNetworkPath('Top').name
+            botNetworkName = segSpec.getNetworkPath('Bot').name
+            topOffset = segSpec.getYOffset('Top')
+            topHeight = segSpec.getHeight('Top')
+            botHeight = segSpec.getHeight('Bot')
+            topWidth = segSpec.getWidth('Top')
+            botWidth = segSpec.getWidth('Bot')
+            if topHeight is None:
+                topHeightText = "Use network size"
+            else:
+                topHeightText = str(topHeight)
+            if botHeight is None:
+                botHeightText = "Use network size"
+            else:
+                botHeightText = str(botHeight)
+
+            if topWidth is None:
+                topWidthText = "Use network size"
+            else:
+                topWidthText = str(topWidth)
+            if botWidth is None:
+                botWidthText = "Use network size"
+            else:
+                botWidthText = str(botWidth)
+
+            topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
+            botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
+
+            skipExisting = jobEntry['skipExisting']
+
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            # with open('html/CheckSegmentationProgress.html', 'r') as f: htmlTemplate = f.read()
+            return self.formatHTML(
+                environ,
+                'html/CheckSegmentationProgress.html',
+                meanTime=meanTimeStr,
+                confInt=timeConfIntStr,
+                videoList=completedVideoListHTML,
+                jobStateName=jobStateName,
+                jobNum=jobNum,
+                estimatedTimeRemaining=estimatedTimeRemaining,
+                jobName=jobEntry['jobName'],
+                owner=owner,
+                creationTime=creationTime,
+                startTime=startTime,
+                completionTime=completionTime,
+                exitCodePhrase=exitCodePhrase,
+                logHTML=logHTML,
+                percentComplete=percentComplete,
+                numComplete=numCompletedTasks,
+                numTotal=numTasks,
+                stateDescription=stateDescription,
+                processDead=processDead,
+                binaryThreshold=binaryThreshold,
+                maskSaveDirectory=maskSaveDirectory,
+                topNetworkName=topNetworkName,
+                botNetworkName=botNetworkName,
+                topOffset=topOffset,
+                topHeight=topHeightText,
+                botHeight=botHeightText,
+                topWidth=topWidthText,
+                botWidth=botWidthText,
+                generatePreview=generatePreview,
+                skipExisting=skipExisting,
+                topMaskPreviewSrc=topMaskPreviewSrc,
+                botMaskPreviewSrc=botMaskPreviewSrc,
+                autoReloadInterval=AUTO_RELOAD_INTERVAL,
+                hidePreview=hidePreview
+            )
+        elif jobEntry['jobType'] == TRAIN_TYPE:
+            if jobEntry['startNetworkPath'] is None:
+                startNetworkNameText = "Randomized (naive) network"
+            else:
+                startNetworkNameText = jobEntry['startNetworkPath'].name
+            if jobEntry['augmentData']:
+                augmentDataText = 'Yes'
+            else:
+                augmentDataText = 'No'
+
+            if len(jobEntry['loss']) > 0:
+                bestLoss = '{:0.4f}'.format(min(jobEntry['loss']))
+                lastLoss = '{:0.4f}'.format(jobEntry['loss'][-1])
+            else:
+                bestLoss = '--'
+                lastLoss = '--'
+            if len(jobEntry['loss']) > 0:
+                bestAccuracy = '{:0.4f}'.format(max(jobEntry['accuracy']))
+                lastAccuracy = '{:0.4f}'.format(jobEntry['accuracy'][-1])
+            else:
+                bestAccuracy = '--'
+                lastAccuracy = '--'
+
+            augmentationParameters = jobEntry['augmentationParameters']
+
+            start_fn('200 OK', [('Content-Type', 'text/html')])
+            return self.formatHTML(
+                environ,
+                'html/CheckTrainProgress.html',
+                numEpochsComplete=numCompletedTasks,
+                numEpochsTotal=numTasks,
+                bestLoss=bestLoss,
+                bestAccuracy=bestAccuracy,
+                lastLoss=lastLoss,
+                lastAccuracy=lastAccuracy,
+                startNetworkName=startNetworkNameText,
+                newNetworkName=jobEntry['newNetworkPath'].name,
+                batchSize=jobEntry['batchSize'],
+                augmentData=augmentDataText,
+                rotationRange=augmentationParameters['rotation_range'],
+                widthShiftRange=augmentationParameters['width_shift_range'],
+                heightShiftRange=augmentationParameters['height_shift_range'],
+                zoomRange=augmentationParameters['zoom_range'],
+                horizontalFlip=augmentationParameters['horizontal_flip'],
+                verticalFlip=augmentationParameters['vertical_flip'],
+                meanTime=meanTimeStr,
+                confInt=timeConfIntStr,
+                jobStateName=jobStateName,
+                jobName=jobEntry['jobName'],
+                jobNum=jobNum,
+                estimatedTimeRemaining=estimatedTimeRemaining,
+                owner=owner,
+                creationTime=creationTime,
+                startTime=startTime,
+                completionTime=completionTime,
+                exitCodePhrase=exitCodePhrase,
+                logHTML=logHTML,
+                percentComplete=percentComplete,
+                stateDescription=stateDescription,
+                processDead=processDead,
+                generatePreview=generatePreview,
+                autoReloadInterval=AUTO_RELOAD_INTERVAL,
+                hidePreview=hidePreview
+            )
+        else:
+            raise ValueError('Unrecognized job type: {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
     def rootHandler(self, environ, start_fn):
         logger.log(logging.INFO, 'Serving root file')
-        neuralNetworkList = self.getNeuralNetworkList()
+        neuralNetworkList = self.getNeuralNetworkList(namesOnly=True)
         mountList = self.getMountList(includePosixLocal=True)
         mountURIs = mountList.keys()
         mountPaths = [mountList[k] for k in mountURIs]
-        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue='Z:')
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue=DEFAULT_MOUNT_PATH)
         if 'QUERY_STRING' in environ:
             queryString = environ['QUERY_STRING']
         else:
@@ -1070,9 +1444,9 @@ class SegmentationServer:
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return self.formatHTML(
                 environ,
-                'Index.html',
+                'html/Index.html',
                 query=queryString,
-                mounts=mountList,
+                # mounts=mountList,
                 # environ=environ,
                 input=postData,
                 remoteUser=username,
@@ -1089,6 +1463,39 @@ class SegmentationServer:
                 errorMsg='No neural networks found! Please upload a .h5 or .hd5 neural network file to the ./{nnsubfolder} folder.'.format(nnsubfolder=NETWORKS_SUBFOLDER),
                 linkURL='/',
                 linkAction='retry job creation once a neural network has been uploaded'
+            )
+
+    def trainHandler(self, environ, start_fn):
+        logger.log(logging.INFO, 'Serving network training file')
+        existingNeuralNetworkList = [RANDOM_TRAINING_NETWORK_NAME] + self.getNeuralNetworkList(namesOnly=True)
+        mountList = self.getMountList(includePosixLocal=True)
+        mountURIs = mountList.keys()
+        mountPaths = [mountList[k] for k in mountURIs]
+        mountOptionsText = self.createOptionList(mountPaths, optionNames=mountURIs, defaultValue=DEFAULT_MOUNT_PATH)
+        if 'QUERY_STRING' in environ:
+            queryString = environ['QUERY_STRING']
+        else:
+            queryString = 'None'
+        postDataRaw = environ['wsgi.input'].read().decode('utf-8')
+        postData = urllib.parse.parse_qs(postDataRaw, keep_blank_values=False)
+
+        logger.log(logging.INFO, 'Creating return data')
+
+        username = getUsername(environ)
+
+        existingNetworkOptionText = self.createOptionList(existingNeuralNetworkList, defaultValue=RANDOM_TRAINING_NETWORK_NAME)
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'html/Train.html',
+            query=queryString,
+            # mounts=mountList,
+            # environ=environ,
+            input=postData,
+            remoteUser=username,
+            path=environ['PATH_INFO'],
+            nopts=existingNetworkOptionText,
+            mopts=mountOptionsText
             )
 
     def cancelJobHandler(self, environ, start_fn):
@@ -1152,20 +1559,28 @@ class SegmentationServer:
     def myJobsHandler(self, environ, start_fn):
         user = getUsername(environ)
 
-        with open('MyJobsTableRowTemplate.html', 'r') as f:
+        with open('html/MyJobsTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
 
         jobEntries = []
         for jobNum in self.getJobNums(owner=user):
             state = self.getHumanReadableJobState(jobNum)
 
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum)
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+            if self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
+                jobType = 'Train'
+            elif self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
+                jobType = 'Segment'
+            else:
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
             jobEntries.append(jobEntryTemplate.format(
                 percentComplete=percentComplete,
                 jobNum=jobNum,
+                jobType=jobType,
+                numTasks=numTasks,
                 jobDescription=self.jobQueue[jobNum]['jobName'],
                 state=state
             ))
@@ -1173,11 +1588,156 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'MyJobs.html',
+            'html/MyJobs.html',
             tbody=jobEntryTableBody,
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
             user=user
         )
+
+    def networkRenameHandler(self, environ, start_fn):
+        # if not isAdmin(getUsername(environ)):
+        #     # User is not authorized
+        #     return self.unauthorizedHandler(environ, start_fn)
+
+        # Get old and new names from URL
+        oldName, newName = environ['PATH_INFO'].split('/')[-2:]
+        if oldName not in self.getNeuralNetworkList(namesOnly=True):
+            # Invalid name
+            start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot rename - network does not exist',
+                errorMsg='Something went wrong - could not find network {netName}'.format(netName=oldName),
+                linkURL='/networkManagement',
+                linkAction='go back to network management'
+            )
+        elif newName in self.getNeuralNetworkList(namesOnly=True):
+            # New name already exists
+            start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot rename - name already in use',
+                errorMsg='A network by the name \"{newName}\" already exists. Please rename or remove that network first.'.format(newName=newName),
+                linkURL='/networkManagement',
+                linkAction='go back to network management'
+            )
+        else:
+            # Valid network names - execute rename operation
+            try:
+                success, msg = self.renameNeuralNetwork(oldName, newName)
+                if not success:
+                    raise OSError(msg)
+            except FileNotFoundError:
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='An error occurred when renaming \"{oldName}\" to \"{newName}\". Please check that the new name only contains valid filename characters.'.format(oldName=oldName, newName=newName),
+                    linkURL='/networkManagement',
+                    linkAction='go back to network management'
+                )
+            except PermissionError:
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='A permission error occurred when renaming \"{oldName}\" to \"{newName}\". Please check the permissions for the network file.'.format(oldName=oldName, newName=newName),
+                    linkURL='/networkManagement',
+                    linkAction='go back to network management'
+                )
+            except OSError:
+                start_fn('500 Internal Server Error', [('Content-Type', 'text/html')])
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='An error occurred when renaming \"{oldName}\" to \"{newName}\": {msg}'.format(oldName=oldName, newName=newName, msg=msg),
+                    linkURL='/networkManagement',
+                    linkAction='go back to network management'
+                )
+        start_fn('303 See Other', [('Location','/networkManagement')])
+        return []
+
+    def networkRemoveHandler(self, environ, start_fn):
+        # if not isAdmin(getUsername(environ)):
+        #     # User is not authorized
+        #     return self.unauthorizedHandler(environ, start_fn)
+
+        # Get old and new names from URL
+        netName = environ['PATH_INFO'].split('/')[-1]
+        if netName not in self.getNeuralNetworkList(namesOnly=True):
+            # Invalid name
+            start_fn('404 Not Found', [('Content-Type', 'text/html')])
+            return self.formatError(
+                environ,
+                errorTitle='Cannot remove - network does not exist',
+                errorMsg='Something went wrong - could not find network {netName}'.format(netName=netName),
+                linkURL='/networkManagement',
+                linkAction='go back to network management'
+            )
+        else:
+            # Valid network names - execute remove operation
+            logger.log(logging.INFO, 'Removing net \"{netName}\"'.format(netName=netName))
+            try:
+                self.removeNeuralNetwork(netName)
+            except FileNotFoundError:
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='An error occurred when removing \"{netName}\" - could not find network.'.format(netName=netName),
+                    linkURL='/networkManagement',
+                    linkAction='go back to network management'
+                )
+            except PermissionError:
+                return self.formatError(
+                    environ,
+                    errorTitle='Error renaming file',
+                    errorMsg='A permission error occurred when removing \"{netName}\". Please check the permissions for the network file.'.format(netName=netName),
+                    linkURL='/networkManagement',
+                    linkAction='go back to network management'
+                )
+        start_fn('303 See Other', [('Location','/networkManagement')])
+        return []
+
+    def networkManagementHandler(self, environ, start_fn):
+        # if not isAdmin(getUsername(environ)):
+        #     # User is not authorized
+        #     return self.unauthorizedHandler(environ, start_fn)
+
+        networkPaths, networkTimestamps = self.getNeuralNetworkList(includeTimestamps=True)
+        networkTimestampStrings = [timestamp.strftime(HTML_DATE_FORMAT) for timestamp in networkTimestamps]
+
+        with open('html/NetworkManagementTableRowTemplate.html', 'r') as f:
+            networkEntryTemplate = f.read()
+
+        networkEntries = []
+        for k, (networkPath, timestamp) in enumerate(zip(networkPaths, networkTimestampStrings)):
+            networkEntries.append(
+                networkEntryTemplate.format(
+                    netNum = k,
+                    netName = networkPath.name,
+                    netTime = timestamp
+                )
+            )
+        networkEntryTableBody = '\n'.join(networkEntries)
+        start_fn('200 OK', [('Content-Type', 'text/html')])
+        return self.formatHTML(
+            environ,
+            'html/NetworkManagement.html',
+            tbody=networkEntryTableBody,
+            numNetworks=len(networkPaths),
+            autoReloadInterval=AUTO_RELOAD_INTERVAL,
+        )
+
+    def getJobProgress(self, jobNum):
+        if self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
+            numTasks = len(self.jobQueue[jobNum]['videoList'])
+            numCompletedTasks = len(self.jobQueue[jobNum]['completedVideoList'])
+        elif self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
+            numTasks = self.jobQueue[jobNum]['numEpochs']
+            numCompletedTasks = self.jobQueue[jobNum]['lastEpochNum'] + 1
+        else:
+            raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
+        return numTasks, numCompletedTasks
 
     def serverManagementHandler(self, environ, start_fn):
         if not isAdmin(getUsername(environ)):
@@ -1186,7 +1746,7 @@ class SegmentationServer:
 
         allJobNums = self.getJobNums()
 
-        with open('ServerManagementTableRowTemplate.html', 'r') as f:
+        with open('html/ServerManagementTableRowTemplate.html', 'r') as f:
             jobEntryTemplate = f.read()
 
         serverStartTime = self.startTime.strftime(HTML_DATE_FORMAT)
@@ -1195,26 +1755,32 @@ class SegmentationServer:
         for jobNum in allJobNums:
             state = self.getHumanReadableJobState(jobNum)
 
-            numVideos = len(self.jobQueue[jobNum]['videoList'])
-            numCompletedVideos = len(self.jobQueue[jobNum]['completedVideoList'])
-            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedVideos/numVideos)
+            numTasks, numCompletedTasks = self.getJobProgress(jobNum)
+            percentComplete = "{percentComplete:.1f}".format(percentComplete=100*numCompletedTasks/numTasks)
+
+            if self.jobQueue[jobNum]['jobType'] == TRAIN_TYPE:
+                jobType = 'Train'
+            elif self.jobQueue[jobNum]['jobType'] == SEGMENT_TYPE:
+                jobType = 'Segment'
+            else:
+                raise ValueError('Unknown job type {t}'.format(t=self.jobQueue[jobNum]['jobType']))
 
             jobEntries.append(jobEntryTemplate.format(
-                numVideos = numVideos,
-                numCompletedVideos = numCompletedVideos,
-                percentComplete = percentComplete,
                 jobNum=jobNum,
                 jobDescription = self.jobQueue[jobNum]['jobName'],
+                jobType=jobType,
+                owner=self.jobQueue[jobNum]['owner'],
+                percentComplete = percentComplete,
+                numTasks=numTasks,
                 confirmed=self.jobQueue[jobNum]['confirmed'],
                 cancelled=self.jobQueue[jobNum]['cancelled'],
-                state=state,
-                owner=self.jobQueue[jobNum]['owner']
+                state=state
             ))
         jobEntryTableBody = '\n'.join(jobEntries)
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'ServerManagement.html',
+            'html/ServerManagement.html',
             tbody=jobEntryTableBody,
             startTime=serverStartTime,
             autoReloadInterval=AUTO_RELOAD_INTERVAL,
@@ -1241,7 +1807,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'Help.html',
+            'html/Help.html',
             user=user
         )
 
@@ -1251,7 +1817,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'ChangePassword.html',
+            'html/ChangePassword.html',
             user=user
         )
 
@@ -1296,7 +1862,7 @@ class SegmentationServer:
         start_fn('200 OK', [('Content-Type', 'text/html')])
         return self.formatHTML(
             environ,
-            'PasswordChanged.html',
+            'html/PasswordChanged.html',
             user=user,
             message="Password succesfully changed!"
         )
@@ -1313,11 +1879,13 @@ class SegmentationServer:
         )
 
     def unauthorizedHandler(self, environ, start_fn):
+        user=getUsername(environ)
+        logger.log(logging.INFO, 'Unauthorized access attempt: {user}'.format(user=user))
         start_fn('404 Not Found', [('Content-Type', 'text/html')])
         return self.formatError(
             environ,
             errorTitle='Not authorized',
-            errorMsg='User {user} is not authorized to perform that action!'.format(user=getUsername(environ)),
+            errorMsg='User {user} is not authorized to perform that action!'.format(user=user),
             linkURL='/',
             linkAction='return to job creation page'
         )

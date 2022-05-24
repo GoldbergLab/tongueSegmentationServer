@@ -1,9 +1,9 @@
 # import skimage.io as io
 # import skimage.transform as trans
 import numpy as np
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 #from keras.layers import *
-from keras.backend import clear_session
+from tensorflow.keras.backend import clear_session
 from scipy.io import savemat
 import glob
 import cv2
@@ -12,6 +12,7 @@ from pathlib import Path
 from array2gif import write_gif
 from tensorflow import Graph, Session
 import functools
+import traceback
 
 def requireFrameSize(func):
     @functools.wraps(func)
@@ -83,6 +84,8 @@ class SegSpec:
 
     def _paramsValid(self):
         for partName in self._partNames:
+            print('Part=', partName)
+            print('Checking if _maskDims is valid:', self._maskDims[partName])
             if None in self._maskDims[partName]:
                 return (False, 'Uninitialized mask dimension')
             w, h, x, y = self._maskDims[partName]
@@ -180,9 +183,11 @@ class SegSpec:
                             h = None
                         if w is not None and (overwriteShape or (self._maskDims[partName][0] is None)):
                             # We got a width from the network, and either we're overwriting width, or width was not specified.
+                            print('Using width from network', w)
                             self._maskDims[partName][0] = w
                         if h is not None and (overwriteShape or (self._maskDims[partName][1] is None)):
                             # We got a height from the network, and either we're overwriting height, or height  was not specified.
+                            print('Using height from network:', h)
                             self._maskDims[partName][1] = h
         valid, reason = self._paramsValid()
         if not valid:
@@ -271,7 +276,8 @@ def segmentVideo(videoPath=None, segSpec=None, maskSaveDirectory=None, videoInde
                 gifData = [gifData[:, k, :, :] for k in range(gifData.shape[1])]
                 write_gif(gifData, gifSavePath, fps=40)
             except:
-                print("Mask preview creation failed.")
+                print("Mask preview creation failed with error:")
+                print(traceback.format_exc())
 
         # Save mask to disk
         savemat(savePath,{'mask_pred':maskPredictions[partName]}, do_compression=True)

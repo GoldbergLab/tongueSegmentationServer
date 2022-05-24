@@ -9,3 +9,5 @@
 # Ignore specific files:
 /TODO.txt
 Auth.json
+# Ignore compiled python files
+*.pyc

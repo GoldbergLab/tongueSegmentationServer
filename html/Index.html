@@ -14,16 +14,16 @@
   <div class="section">
     <div class="container">
       <div class="row">
-        <h4 class="three columns"
+        <h4 class="nine columns"
             aria-label="Create a new tongue segmentation job.
               Once all jobs ahead in line are done, your job will automatically start.
               You do not need to keep the browser window open - it will run independently."
             data-balloon-pos="down"
             data-balloon-length="large">
-          Create new job:
+          Create new segmentation job:
         </h4>
       </div>
-      <form action="/finalizeJob" method="POST">
+      <form action="/finalizeSegmentationJob" method="POST">
         <div class="row">
           <label class="three columns" for="jobName"
               aria-label="Enter a name or description of job to make it easier to remember what's going on later."
@@ -214,7 +214,7 @@
               You will be asked to confirm the parameters before the job is enqueued."
             data-balloon-pos="down"
             data-balloon-length="fit">
-          <input class="button button-primary u-full-width" type="submit" value="Initialize job">
+          <input class="button button-primary u-full-width" type="submit" value="Initialize segmentation job">
         </div>
       </form>
     </div>
