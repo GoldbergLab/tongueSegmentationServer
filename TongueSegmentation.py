@@ -88,7 +88,7 @@ class SegSpec:
             w, h, x, y = self._maskDims[partName]
             if self.frameW is not None and self.frameH is not None:
                 if (x+w > self.frameW) or (y+h > self.frameH):
-                    return (False, 'Mask does not fit in frame')
+                    return (False, 'Mask does not fit in frame. FrameSize={f}, MaskOrigin: {o}, MaskDims: {dim}'.format(f=(self.frameW, self.frameH), o = (x, y), dim=(w, h)))
         return (True, '')
 
     def getPartNames(self):
