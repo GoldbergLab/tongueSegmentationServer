@@ -594,28 +594,6 @@ class SegmentationServer:
                 skipExisting = False
             jobName = postData['jobName'][0]
 
-            # Prepare to record job parameters for posterity
-            paramRecord = {
-                "rootMountPoint":rootMountPoint,
-                "videoDirs":videoDirs,
-                "videoFilter":videoFilter,
-                "maskSaveDirectory":maskSaveDirectory,
-                "pathStyle":pathStyle,
-                "topNetworkName":topNetworkName,
-                "botNetworkName":botNetworkName,
-                "binaryThreshold":binaryThreshold,
-                "topOffset":topOffset,
-                "topHeight":topHeight,
-                "topHeight":topHeight,
-                "botHeight":botHeight,
-                "topWidth":topWidth,
-                "botWidth":botWidth,
-                "botWidth":botWidth,
-                "generatePreview":generatePreview,
-                "skipExisting":skipExisting,
-                "jobName":jobName
-            }
-
         except KeyError:
             # Missing one of the postData arguments
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -695,10 +673,32 @@ class SegmentationServer:
         jobNums = []
 
         # Loop over (usually one, potentially multiple) pairs of videoLists and mask save dirs, create one job for each.
-        for videoList, maskDir in zip(videoLists, reRootedMaskSaveDirs):
+        for videoDir, videoList, maskDir in zip(reRootedVideoDirs, videoLists, reRootedMaskSaveDirs):
             # Add job parameters to queue
             jobNum = SegmentationServer.newJobNum()
             jobNums.append(jobNum)
+
+            # Prepare to record job parameters for posterity
+            paramRecord = {
+                "rootMountPoint":rootMountPoint,
+                "videoDir":str(videoDir),
+                "videoFilter":videoFilter,
+                "maskDir":str(maskDir),
+                "pathStyle":pathStyle,
+                "topNetworkName":topNetworkName,
+                "botNetworkName":botNetworkName,
+                "binaryThreshold":binaryThreshold,
+                "topOffset":topOffset,
+                "topHeight":topHeight,
+                "topHeight":topHeight,
+                "botHeight":botHeight,
+                "topWidth":topWidth,
+                "botWidth":botWidth,
+                "botWidth":botWidth,
+                "generatePreview":generatePreview,
+                "skipExisting":skipExisting,
+                "jobName":jobName
+            }
 
             self.jobQueue[jobNum] = dict(
                 job=None,                               # Job process object
