@@ -40,6 +40,11 @@ def initializeLogger():
     logger.setLevel(logging.INFO)
     # create file handler which logs even debug messages
     datetimeString = dt.datetime.now().strftime('%Y-%m-%d_%H-%M-%S.%f')
+
+    # If logs folder doesn't exist, create it
+    if not Path(LOGS_SUBFOLDER).exists():
+        Path(LOGS_SUBFOLDER).mkdir()
+
     fh = logging.FileHandler('./{logs}/{n}_{d}.log'.format(d=datetimeString, n=__name__, logs=LOGS_SUBFOLDER))
     fh.setLevel(logging.INFO)
     # create console handler with a higher log level
