@@ -2,8 +2,10 @@
 /__pycache__/
 # Ignore log files:
 /logs/
-# Ignore neural networks
+# Ignore neural network folder
 /networks/
+# ...even if it's a symlink
+/networks
 # Ignore private files
 /private/
 # Ignore specific files:
