@@ -390,7 +390,7 @@ class SegmentationServer:
             raise FileNotFoundError('Could not find file {f}'.format(name))
 
     def checkNetworkPathSafety(self, path):
-        if (not NETWORKS_FOLDER in path.resolve().parents):
+        if (not NETWORKS_FOLDER in path.parents) and (not NETWORKS_FOLDER in path.resolve().parents):
             # Ensure both paths are children of NETWORKS_FOLDER, to prevent hijinks
             raise OSError('Disallowed network path accessed: {p} - permission denied.'.format(p=path))
 
