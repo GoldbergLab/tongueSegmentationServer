@@ -131,7 +131,7 @@ def loadAuth():
     logger.log(logging.INFO, "Authentication reloaded.")
     return users, user_lvls
 
-BASE_USER='glab'
+BASE_USER='user'
 ADMIN_USER='admin'
 DEFAULT_PASSWORD = 'password'
 # DEFAULT_AUTH is used to create a default auth file if none is found
