@@ -8,6 +8,7 @@ for managing and monitoring the server and the progress of segmentation jobs.
 ## Requirements
 
 - Computer to run the server that can be accessed by client computers over a network
+- Either local or remote (mapped) drives where raw video data will be stored, accessible by server computer
 - RAM: At least 16 GB recommended
 - Processor: Intel I7 or greater recommended
 - GPU: NVIDIA GPU required, RTX 3060 or better recommended
