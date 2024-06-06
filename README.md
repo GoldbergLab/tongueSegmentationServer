@@ -14,7 +14,7 @@ for managing and monitoring the server and the progress of segmentation jobs.
 - GPU: NVIDIA GPU required, RTX 3060 or better recommended
 - Windows 10 recommended
 - [Anaconda](https://www.anaconda.com/)
-- Libraries installed in Anaconda as per [conda_requirements.yml](conda_requirements.yml)
+- Libraries installed in Anaconda as per [SegmentationServer_Requirements.yml](SegmentationServer_Requirements.yml)
 - Firewall with TCP connections allowed on port 80
 
 ## Installation
@@ -24,7 +24,7 @@ for managing and monitoring the server and the progress of segmentation jobs.
  - Navigate your current working directory to the directory where conda_requirements.yml is
  - Install the required libraries in a new Anaconda environment called "segServer":
 
-```>> conda env update -n segServer --file conda_requirements.yaml```
+```>> conda env update -n segServer --file SegmentationServer_Requirements.yml```
 
 ## Starting server
 
