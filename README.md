@@ -7,7 +7,10 @@ for managing and monitoring the server and the progress of segmentation jobs.
 
 ## Requirements
 
-- Computer to run the server that can be accessed by client computers
+- Computer to run the server that can be accessed by client computers over a network
+- RAM: At least 16 GB recommended
+- Processor: Intel I7 or greater recommended
+- GPU: NVIDIA GPU required, RTX 3060 or better recommended
 - Windows 10 recommended
 - [Anaconda](https://www.anaconda.com/)
 - Libraries installed in Anaconda as per [conda_requirements.yml](conda_requirements.yml)
