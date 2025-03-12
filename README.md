@@ -38,7 +38,7 @@ git pull
 ```
  - Activate the environment you created with the required libraries:
 
-```activate segServer2```
+```activate segServer```
 
  - Start the server:
 
