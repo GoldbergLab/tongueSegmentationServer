@@ -7,7 +7,7 @@
   <div class="section">
     <div class="container">
       <h1 class="section-heading">
-        Segmentation Processor for Images of Tongues (SPIT)
+        NestSeg: Semantic Segmentation of Mouse Nests
       </h1>
     </div>
   </div>
@@ -15,7 +15,7 @@
     <div class="container">
       <div class="row">
         <h4 class="nine columns"
-            aria-label="Create a new tongue segmentation job.
+            aria-label="Create a new nest segmentation job.
               Once all jobs ahead in line are done, your job will automatically start.
               You do not need to keep the browser window open - it will run independently."
             data-balloon-pos="down"
@@ -184,10 +184,10 @@
         <div class="row">
           <label class="three columns" for="binaryThreshold"
               aria-label="Specify the probability threshold (between 0 and 1) above which a pixel should be considered to contain tongue.
-                The neural network outputs a map of prediction probabilities indicating how likely it is that each pixel contains the tongue.
-                To transform this into a binary segmentation of where the tongue is or is not, you must threshold the probability map.
-                Any pixels with probabilities of tongue greater than the threshold are considered to offically be tongue pixels.
-                Any pixels with probabilities below the threshold are considered to officially be not-tongue pixels."
+                The neural network outputs a map of prediction probabilities indicating how likely it is that each pixel contains a nest.
+                To transform this into a binary segmentation of where the nest is or is not, you must threshold the probability map.
+                Any pixels with probabilities of nest greater than the threshold are considered to offically be nest pixels.
+                Any pixels with probabilities below the threshold are considered to officially be not-nest pixels."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Binary Threshold:

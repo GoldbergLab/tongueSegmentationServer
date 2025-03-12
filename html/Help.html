@@ -7,7 +7,7 @@
   <div class="section">
     <div class="container">
       <h1 class="section-heading">
-        Segmentation Processor for Images of Tongues (SPIT)
+        NestSeg: Semantic Segmentation of Mouse Nests
       </h1>
     </div>
   </div>
@@ -20,19 +20,19 @@
         <h4>Videos &#8594; Masks</h4>
       </div>
       <div class="row subsection">
-        SPIT is a web server that uses neural networks to segment your mouse tongue videos to produce a pair of mask stacks for each video.
+        NestSeg is a web server that uses neural networks to segment your videos containing mouse nests to produce a pair of mask stacks for each video.
         Masks are binary (black/white) images that represent a determination of whether each pixel of the original videos
-        is part of a mouse tongue or not. In these masks, black pixels in the masks represent pixels in your original video that have been
-        judged to NOT be part of a mouse tongue. White pixels in the masks represent pixels in your original video that have been judged
-        INDEED to be part of a mouse tongue. A mask stack is a series of masks with each mask corresponding to a frame in a video.
+        is part of a mouse nest or not. In these masks, black pixels in the masks represent pixels in your original video that have been
+        judged to NOT be part of a mouse nest. White pixels in the masks represent pixels in your original video that have been judged
+        INDEED to be part of a mouse nest. A mask stack is a series of masks with each mask corresponding to a frame in a video.
       </div>
       <div class="row">
         <h4>Training data &#8594; trained network</h4>
       </div>
       <div class="row subsection">
-        SPIT also is capable of training networks to segment videos. By specifying the location of a .mat file containing an imageStack attribute
+        NestSeg also is capable of training networks to segment videos. By specifying the location of a .mat file containing an imageStack attribute
         (which is a 3D array representing a stack of images) and maskStack (which is a 3D array representing a stack of binary pixel classification
-        masks), SPIT will use the training data to learn how to segment video frames into two categories. You can start from a random (naive) network,
+        masks), NestSeg will use the training data to learn how to segment video frames into two categories. You can start from a random (naive) network,
         or you can specify a pre-existing network to add training to. Once the network is trained, it will be automatically available for use segmenting
         videos.
       </div>
@@ -87,7 +87,7 @@
           </li>
           <li>
             On the "<strong>Check progress</strong>" page, you can monitor the progress of your job. If you are first in line, your job will start immediately. If not, it will
-            start as soon as all the jobs ahead of you finsih. You do NOT need to keep the browser tab open - closing it will not affect your job.
+            start as soon as all the jobs ahead of you finish. You do NOT need to keep the browser tab open - closing it will not affect your job.
             If you wish, you can bookmark the "Check progress" page so you can come back to it later. That page will remain connected to your job until one day after the job
             terminates.
           </li>
@@ -124,14 +124,14 @@
           No, you are free to close the browser window - the job will continue to work or wait in the queue.
           If you want, you can bookmark the "check progress" page so you can come back to it later. Alternatively,
           you can write down your job's ID number, and then point your browser to
-          http://as-nbb-gold-40.ad.cornell.edu/checkProgress/<strong>N</strong>, where "N" is your job ID number.
+          http://10.154.199.144/checkProgress/<strong>N</strong>, where "N" is your job ID number.
           </nav>
         </div>
         <div class="row"><h5>It says my job exited with errors. What should I do?</h5></div>
         <div class="row">
-          Probably slack @bkardon.
+          Probably slack @Brendan Ito.
         </div>
-        <div class="row"><h5>What if my tongue segmentation does not result in publishable results?</h5></div>
+        <div class="row"><h5>What if my nest segmentation does not result in publishable results?</h5></div>
         <div class="row">
           Hey, science is tough - take it easy on yourself, get some sleep, try again tomorrow. It's not supposed to be easy,
           and if other people are making it look easy, they're just not letting it show. It's also a team sport, so ask for help
@@ -141,14 +141,14 @@
         <div class="row">
           Well, I don't really know how you're reading this FAQ if you can't connect to the site, but ok.
           If your browser fails to load the website, and gives you an error page with a message like
-          <code>This site can't be reached: as-nbb-gold-40.ad.cornell.edu took too long to respond.</code>,
-          then you are probably off campus and not using the Cornell VPN. The server is hosted within the NBB
-          network, so it is only accessible if you are on a Cornell network, or the VPN is running on your computer.
-          <a href="https://it.cornell.edu/cuvpn">Click here</a> for instructions for installing and operating the Cornell VPN.
+          <code>This site can't be reached: 10.154.199.144 took too long to respond.</code>,
+          then you are probably off campus and not using the NYULMC VPN. The server is hosted within the NYULMC
+          network, so it is only accessible if you are on a NYULMC network, or the VPN is running on your computer.
+          <a href="https://atnyulmc.org/help-documentation/remote-vpn-documentation/Download-VPN-Security-Application">Click here</a> for instructions for installing and operating the NYULMC VPN.
         </div>
         <div class="row"><h5>Who made all this stuff?</h5></div>
         <div class="row">
-          Dr. Teja Bollu created the code that segments tongue videos. Brian Kardon wrapped it in a website.
+          Dr. Teja Bollu created the initial segmentation code. Brian Kardon wrapped it in a website. Dr. Brendan Ito adapted it for nest segmentation for the Froemke Lab.
         </div>
       </div>
     </div>
