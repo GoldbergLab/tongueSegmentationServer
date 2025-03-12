@@ -109,22 +109,10 @@
                 If the network you want to use is not in this list, ask the server administrator to add it to the list of available networks."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Top neural network name:
+            Neural network name:
           </label>
           <select class="nine columns" name="topNetworkName" id="topNetworkName">
           {nopts_top}
-          </select>
-        </div>
-        <div class="row">
-          <label class="three columns" class="six columns" for="botNetworkName"
-              aria-label="Select a trained neural network to use to segment the bottom part of the videos.
-                If the network you want to use is not in this list, ask the server administrator to add it to the list of available networks."
-              data-balloon-pos="down"
-              data-balloon-length="fit">
-            Bot neural network name:
-          </label>
-          <select class="nine columns" name="botNetworkName" id="botNetworkName">
-          {nopts_bot}
           </select>
         </div>
         <div class="row">
@@ -133,7 +121,7 @@
                 For example, if the top of the top mask should be 20 pixels below the top of the video, enter 20."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Top mask vertical offset:
+            Mask vertical offset:
           </label>
           <input class="two columns" type="number" id="topOffset" name="topOffset" min="0" step="1" value="0">
         </div>
@@ -144,7 +132,7 @@
                 Some neural networks may have a predefined mask shape, some do not."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Top mask height:
+            Mask height:
           </label>
           <input class="two columns" type="number" id="topHeight" name="topHeight" min="0" step="1" value="">
         </div>
@@ -155,31 +143,9 @@
                 Some neural networks may have a predefined mask shape, some do not."
               data-balloon-pos="down"
               data-balloon-length="fit">
-            Top mask width:
+            Mask width:
           </label>
           <input class="two columns" type="number" id="topWidth" name="topWidth" min="0" step="1" value="">
-        </div>
-        <div class="row">
-          <label class="three columns" for="botHeight"
-              aria-label="Optional - specify the desired height of the bottom mask, in pixels.
-                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank.
-                Some neural networks may have a predefined mask shape, some do not."
-              data-balloon-pos="down"
-              data-balloon-length="fit">
-            Bottom mask height:
-          </label>
-          <input class="two columns" type="number" id="botHeight" name="botHeight" min="0" step="1" value="">
-        </div>
-        <div class="row">
-          <label class="three columns" for="botWidth"
-              aria-label="Optional - specify the desired width of the bottom mask, in pixels.
-                If you want to allow the neural network settings to determine the mask height (most likely), leave this blank.
-                Some neural networks may have a predefined mask shape, some do not."
-              data-balloon-pos="down"
-              data-balloon-length="fit">
-            Bot mask width:
-          </label>
-          <input class="two columns" type="number" id="botWidth" name="botWidth" min="0" step="1" value="">
         </div>
         <div class="row">
           <label class="three columns" for="binaryThreshold"
