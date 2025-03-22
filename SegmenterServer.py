@@ -612,7 +612,7 @@ class SegmentationServer:
                 )
 
         segSpec = SegSpec(
-            partNames=['Top'],
+            partNames=['Mask'],
             heights=[maskHeight],
             widths=[maskWidth],
             yOffsets=[0, maskOffset],
@@ -1212,8 +1212,8 @@ class SegmentationServer:
                 )
 
         maskPart = environ['PATH_INFO'].split('/')[-1].lower()
-        if maskPart == "top":
-            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Top.gif'
+        if maskPart == "mask":
+            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Mask.gif'
         else:
             # Invalid mask part
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -1382,10 +1382,10 @@ class SegmentationServer:
             binaryThreshold = jobEntry['binaryThreshold']
             maskSaveDirectory = jobEntry['maskSaveDirectory']
             segSpec = jobEntry['segSpec']
-            neuralNetworkName = segSpec.getNetworkPath('Top').name
-            maskOffset = segSpec.getYOffset('Top')
-            maskHeight = segSpec.getHeight('Top')
-            maskWidth = segSpec.getWidth('Top')
+            neuralNetworkName = segSpec.getNetworkPath('Mask').name
+            maskOffset = segSpec.getYOffset('Mask')
+            maskHeight = segSpec.getHeight('Mask')
+            maskWidth = segSpec.getWidth('Mask')
             if maskHeight is None:
                 heightText = "Use network size"
             else:
@@ -1396,7 +1396,7 @@ class SegmentationServer:
             else:
                 widthText = str(maskWidth)
 
-            topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
+            maskPreviewSrc = '/maskPreview/{jobNum}/mask'.format(jobNum=jobNum)
 
             skipExisting = jobEntry['skipExisting']
 
@@ -1431,7 +1431,7 @@ class SegmentationServer:
                 maskWidth=widthText,
                 generatePreview=generatePreview,
                 skipExisting=skipExisting,
-                topMaskPreviewSrc=topMaskPreviewSrc,
+                maskPreviewSrc=maskPreviewSrc,
                 autoReloadInterval=AUTO_RELOAD_INTERVAL,
                 hidePreview=hidePreview
             )
@@ -1532,7 +1532,7 @@ class SegmentationServer:
                 input=postData,
                 remoteUser=username,
                 path=environ['PATH_INFO'],
-                nopts_top=topNetworkOptionText,
+                nopts_nest=networkOptionText,
                 mopts=mountOptionsText
                 )
         else:
