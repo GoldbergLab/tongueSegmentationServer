@@ -104,52 +104,52 @@
           <input class="one column large-radio" type="radio" id="posixStyle" name="pathStyle" value="posixStylePaths">
         </div>
         <div class="row">
-          <label class="three columns" class="six columns" for="topNetworkName"
-              aria-label="Select a trained neural network to use to segment the top part of the videos.
+          <label class="three columns" class="six columns" for="neuralNetworkName"
+              aria-label="Select a trained neural network to use to segment the videos.
                 If the network you want to use is not in this list, ask the server administrator to add it to the list of available networks."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Neural network name:
           </label>
-          <select class="nine columns" name="topNetworkName" id="topNetworkName">
+          <select class="nine columns" name="neuralNetworkName" id="neuralNetworkName">
           {nopts_top}
           </select>
         </div>
         <div class="row">
-          <label class="three columns" for="topOffset"
-              aria-label="Specify how far from the top of the video the top mask should begin, in pixels.
-                For example, if the top of the top mask should be 20 pixels below the top of the video, enter 20."
+          <label class="three columns" for="maskOffset"
+              aria-label="Specify how far from the top of the video the mask should begin, in pixels.
+                For example, if the top of the mask should be 20 pixels below the top of the video, enter 20."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Mask vertical offset:
           </label>
-          <input class="two columns" type="number" id="topOffset" name="topOffset" min="0" step="1" value="0">
+          <input class="two columns" type="number" id="maskOffset" name="maskOffset" min="0" step="1" value="0">
         </div>
         <div class="row">
-          <label class="three columns" for="topHeight"
-              aria-label="Optional - specify the desired height of the top mask, in pixels.
+          <label class="three columns" for="maskHeight"
+              aria-label="Optional - specify the desired height of the mask, in pixels.
                 If you want to allow the neural network settings to determine the mask height (most likely), leave this blank.
                 Some neural networks may have a predefined mask shape, some do not."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Mask height:
           </label>
-          <input class="two columns" type="number" id="topHeight" name="topHeight" min="0" step="1" value="">
+          <input class="two columns" type="number" id="maskHeight" name="maskHeight" min="0" step="1" value="">
         </div>
         <div class="row">
-          <label class="three columns" for="topWidth"
-              aria-label="Optional - specify the desired width of the top mask, in pixels.
+          <label class="three columns" for="maskWidth"
+              aria-label="Optional - specify the desired width of the mask, in pixels.
                 If you want to allow the neural network settings to determine the mask width (most likely), leave this blank.
                 Some neural networks may have a predefined mask shape, some do not."
               data-balloon-pos="down"
               data-balloon-length="fit">
             Mask width:
           </label>
-          <input class="two columns" type="number" id="topWidth" name="topWidth" min="0" step="1" value="">
+          <input class="two columns" type="number" id="maskWidth" name="maskWidth" min="0" step="1" value="">
         </div>
         <div class="row">
           <label class="three columns" for="binaryThreshold"
-              aria-label="Specify the probability threshold (between 0 and 1) above which a pixel should be considered to contain tongue.
+              aria-label="Specify the probability threshold (between 0 and 1) above which a pixel should be considered to be part of a nest.
                 The neural network outputs a map of prediction probabilities indicating how likely it is that each pixel contains a nest.
                 To transform this into a binary segmentation of where the nest is or is not, you must threshold the probability map.
                 Any pixels with probabilities of nest greater than the threshold are considered to offically be nest pixels.

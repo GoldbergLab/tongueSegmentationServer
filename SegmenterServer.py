@@ -74,7 +74,7 @@ REMOVED_NETWORKS_SUBFOLDER = 'deleted'
 
 DEFAULT_MOUNT_PATH = 'X:'
 
-DEFAULT_TOP_NETWORK_NAME="nest_seg_test.hd5"
+DEFAULT_NETWORK_NAME="nest_seg_test.hd5"
 RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
 
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
@@ -565,19 +565,19 @@ class SegmentationServer:
             videoFilter = postData['videoFilter'][0]
             maskSaveDirs = postData['maskSaveDirs'][0].strip().splitlines()
             pathStyle = postData['pathStyle'][0]
-            topNetworkName = postData['topNetworkName'][0]
-            topNetworkPath = NETWORKS_FOLDER / topNetworkName
+            neuralNetworkName = postData['neuralNetworkName'][0]
+            neuralNetworkPath = NETWORKS_FOLDER / neuralNetworkName
             binaryThreshold = float(postData['binaryThreshold'][0])
-            topOffset = int(postData['topOffset'][0])
-            if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
-                topHeight = None
+            maskOffset = int(postData['maskOffset'][0])
+            if 'maskHeight' not in postData or len(postData['maskHeight'][0]) == 0:
+                maskHeight = None
             else:
-                topHeight = int(postData['topHeight'][0])
+                maskHeight = int(postData['maskHeight'][0])
 
-            if 'topWidth' not in postData or len(postData['topWidth'][0]) == 0:
-                topWidth = None
+            if 'maskWidth' not in postData or len(postData['maskWidth'][0]) == 0:
+                maskWidth = None
             else:
-                topWidth = int(postData['topWidth'][0])
+                maskWidth = int(postData['maskWidth'][0])
 
             if 'generatePreview' in postData:
                 generatePreview = True
@@ -613,11 +613,11 @@ class SegmentationServer:
 
         segSpec = SegSpec(
             partNames=['Top'],
-            heights=[topHeight],
-            widths=[topWidth],
-            yOffsets=[0, topOffset],
+            heights=[maskHeight],
+            widths=[maskWidth],
+            yOffsets=[0, maskOffset],
             offsetAnchors=[SegSpec.SW, SegSpec.NW],
-            neuralNetworkPaths=[topNetworkPath]
+            neuralNetworkPaths=[neuralNetworkPath]
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
@@ -634,7 +634,7 @@ class SegmentationServer:
             if not videoDir.exists():
                 valid = False
                 errorMessages.append('Video directory not found: {videoDir}'.format(videoDir=videoDir))
-        # keys = ['rootMountPoint', 'videoSearchDirs', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'topOffset', 'topHeight', 'binaryThreshold', 'jobName']
+        # keys = ['rootMountPoint', 'videoSearchDirs', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'neuralNetworkName', 'maskOffset', 'maskHeight', 'binaryThreshold', 'jobName']
         # missingKeys = [key for key in keys if key not in postData]
         # if len(missingKeys) > 0:
         #     # Not all form parameters got POSTed
@@ -680,12 +680,11 @@ class SegmentationServer:
                 "videoFilter":videoFilter,
                 "maskDir":str(maskDir),
                 "pathStyle":pathStyle,
-                "topNetworkName":topNetworkName,
+                "neuralNetworkName":neuralNetworkName,
                 "binaryThreshold":binaryThreshold,
-                "topOffset":topOffset,
-                "topHeight":topHeight,
-                "topHeight":topHeight,
-                "topWidth":topWidth,
+                "maskOffset":maskOffset,
+                "maskHeight":maskHeight,
+                "maskWidth":maskWidth,
                 "generatePreview":generatePreview,
                 "skipExisting":skipExisting,
                 "jobName":jobName
@@ -731,14 +730,14 @@ class SegmentationServer:
                 videoListTexts.append(subListText)
             videoListText = "\n".join(videoListTexts)
 
-        if topHeight is None:
-            topHeightText = "Use network size"
+        if maskHeight is None:
+            heightText = "Use network size"
         else:
-            topHeightText = str(topHeight)
-        if topWidth is None:
-            topWidthText = "Use network size"
+            heightText = str(maskHeight)
+        if maskWidth is None:
+            widthText = "Use network size"
         else:
-            topWidthText = str(topWidth)
+            widthText = str(maskWidth)
 
         if len(jobNums) <= 1:
             jobIDText = "job (job ID {jobID})".format(jobID=jobNums[0])
@@ -752,11 +751,11 @@ class SegmentationServer:
             environ,
             'html/FinalizeSegmentationJob.html',
             videoList=videoListText,
-            topNetworkName=topNetworkPath.name,
+            neuralNetworkName=neuralNetworkPath.name,
             binaryThreshold=binaryThreshold,
-            topOffset=topOffset,
-            topHeight=topHeightText,
-            topWidth=topWidthText,
+            maskOffset=maskOffset,
+            maskHeight=heightText,
+            maskWidth=widthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
             jobIDText=jobIDText,
@@ -1383,19 +1382,19 @@ class SegmentationServer:
             binaryThreshold = jobEntry['binaryThreshold']
             maskSaveDirectory = jobEntry['maskSaveDirectory']
             segSpec = jobEntry['segSpec']
-            topNetworkName = segSpec.getNetworkPath('Top').name
-            topOffset = segSpec.getYOffset('Top')
-            topHeight = segSpec.getHeight('Top')
-            topWidth = segSpec.getWidth('Top')
-            if topHeight is None:
-                topHeightText = "Use network size"
+            neuralNetworkName = segSpec.getNetworkPath('Top').name
+            maskOffset = segSpec.getYOffset('Top')
+            maskHeight = segSpec.getHeight('Top')
+            maskWidth = segSpec.getWidth('Top')
+            if maskHeight is None:
+                heightText = "Use network size"
             else:
-                topHeightText = str(topHeight)
+                heightText = str(maskHeight)
 
-            if topWidth is None:
-                topWidthText = "Use network size"
+            if maskWidth is None:
+                widthText = "Use network size"
             else:
-                topWidthText = str(topWidth)
+                widthText = str(maskWidth)
 
             topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
 
@@ -1426,10 +1425,10 @@ class SegmentationServer:
                 processDead=processDead,
                 binaryThreshold=binaryThreshold,
                 maskSaveDirectory=maskSaveDirectory,
-                topNetworkName=topNetworkName,
-                topOffset=topOffset,
-                topHeight=topHeightText,
-                topWidth=topWidthText,
+                neuralNetworkName=neuralNetworkName,
+                maskOffset=maskOffset,
+                maskHeight=heightText,
+                maskWidth=widthText,
                 generatePreview=generatePreview,
                 skipExisting=skipExisting,
                 topMaskPreviewSrc=topMaskPreviewSrc,
@@ -1522,7 +1521,7 @@ class SegmentationServer:
         username = getUsername(environ)
 
         if len(neuralNetworkList) > 0:
-            topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
+            networkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_NETWORK_NAME)
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return self.formatHTML(
                 environ,
