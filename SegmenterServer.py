@@ -74,8 +74,7 @@ REMOVED_NETWORKS_SUBFOLDER = 'deleted'
 
 DEFAULT_MOUNT_PATH = 'X:'
 
-DEFAULT_TOP_NETWORK_NAME="lickbot_net_9952_loss0_0111_09262018_top.h5"
-DEFAULT_BOT_NETWORK_NAME="lickbot_net_9973_loss_0062_10112018_scale3_Bot.h5"
+DEFAULT_TOP_NETWORK_NAME="nest_seg_test.hd5"
 RANDOM_TRAINING_NETWORK_NAME="**RANDOM**"
 
 HTML_DATE_FORMAT='%Y-%m-%d %H:%M:%S'
@@ -189,7 +188,8 @@ def getVideoList(videoDirs, videoFilter='*'):
     for p in videoDirs:
         videoList = []
         for videoPath in p.iterdir():
-            if videoPath.suffix.lower() == ".avi":
+            # Modification to allow for other video types than just .avi
+            if videoPath.suffix.lower() == ".avi" or videoPath.suffix.lower() == ".mp4" or videoPath.suffix.lower() == ".mkv":
                 if videoPath.match(videoFilter):
                     videoList.append(videoPath)
         videoLists.append(videoList)
@@ -566,28 +566,18 @@ class SegmentationServer:
             maskSaveDirs = postData['maskSaveDirs'][0].strip().splitlines()
             pathStyle = postData['pathStyle'][0]
             topNetworkName = postData['topNetworkName'][0]
-            botNetworkName = postData['botNetworkName'][0]
             topNetworkPath = NETWORKS_FOLDER / topNetworkName
-            botNetworkPath = NETWORKS_FOLDER / botNetworkName
             binaryThreshold = float(postData['binaryThreshold'][0])
             topOffset = int(postData['topOffset'][0])
             if 'topHeight' not in postData or len(postData['topHeight'][0]) == 0:
                 topHeight = None
             else:
                 topHeight = int(postData['topHeight'][0])
-            if 'botHeight' not in postData or len(postData['botHeight'][0]) == 0:
-                botHeight = None
-            else:
-                botHeight = int(postData['botHeight'][0])
 
             if 'topWidth' not in postData or len(postData['topWidth'][0]) == 0:
                 topWidth = None
             else:
                 topWidth = int(postData['topWidth'][0])
-            if 'botWidth' not in postData or len(postData['botWidth'][0]) == 0:
-                botWidth = None
-            else:
-                botWidth = int(postData['botWidth'][0])
 
             if 'generatePreview' in postData:
                 generatePreview = True
@@ -622,12 +612,12 @@ class SegmentationServer:
                 )
 
         segSpec = SegSpec(
-            partNames=['Bot', 'Top'],
-            heights=[botHeight, topHeight],
-            widths=[botWidth, topWidth],
+            partNames=['Top'],
+            heights=[topHeight],
+            widths=[topWidth],
             yOffsets=[0, topOffset],
             offsetAnchors=[SegSpec.SW, SegSpec.NW],
-            neuralNetworkPaths=[botNetworkPath, topNetworkPath]
+            neuralNetworkPaths=[topNetworkPath]
         )
         # Re-root directories
         reRootedVideoDirs = [reRootDirectory(rootMountPoint, pathStyle, videoDir) for videoDir in videoDirs]
@@ -644,7 +634,7 @@ class SegmentationServer:
             if not videoDir.exists():
                 valid = False
                 errorMessages.append('Video directory not found: {videoDir}'.format(videoDir=videoDir))
-        # keys = ['rootMountPoint', 'videoSearchDirs', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'botNetworkName', 'topOffset', 'topHeight', 'botHeight', 'binaryThreshold', 'jobName']
+        # keys = ['rootMountPoint', 'videoSearchDirs', 'videoFilter', 'maskSaveDirectory', 'pathStyle', 'topNetworkName', 'topOffset', 'topHeight', 'binaryThreshold', 'jobName']
         # missingKeys = [key for key in keys if key not in postData]
         # if len(missingKeys) > 0:
         #     # Not all form parameters got POSTed
@@ -691,15 +681,11 @@ class SegmentationServer:
                 "maskDir":str(maskDir),
                 "pathStyle":pathStyle,
                 "topNetworkName":topNetworkName,
-                "botNetworkName":botNetworkName,
                 "binaryThreshold":binaryThreshold,
                 "topOffset":topOffset,
                 "topHeight":topHeight,
                 "topHeight":topHeight,
-                "botHeight":botHeight,
                 "topWidth":topWidth,
-                "botWidth":botWidth,
-                "botWidth":botWidth,
                 "generatePreview":generatePreview,
                 "skipExisting":skipExisting,
                 "jobName":jobName
@@ -753,14 +739,6 @@ class SegmentationServer:
             topWidthText = "Use network size"
         else:
             topWidthText = str(topWidth)
-        if botHeight is None:
-            botHeightText = "Use network size"
-        else:
-            botHeightText = str(botHeight)
-        if botWidth is None:
-            botWidthText = "Use network size"
-        else:
-            botWidthText = str(botWidth)
 
         if len(jobNums) <= 1:
             jobIDText = "job (job ID {jobID})".format(jobID=jobNums[0])
@@ -775,13 +753,10 @@ class SegmentationServer:
             'html/FinalizeSegmentationJob.html',
             videoList=videoListText,
             topNetworkName=topNetworkPath.name,
-            botNetworkName=botNetworkPath.name,
             binaryThreshold=binaryThreshold,
             topOffset=topOffset,
             topHeight=topHeightText,
             topWidth=topWidthText,
-            botHeight=botHeightText,
-            botWidth=botWidthText,
             generatePreview=generatePreview,
             skipExisting=skipExisting,
             jobIDText=jobIDText,
@@ -1240,8 +1215,6 @@ class SegmentationServer:
         maskPart = environ['PATH_INFO'].split('/')[-1].lower()
         if maskPart == "top":
             preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Top.gif'
-        elif maskPart == "bot":
-            preview = self.jobQueue[jobNum]['maskSaveDirectory'] / 'Bot.gif'
         else:
             # Invalid mask part
             start_fn('404 Not Found', [('Content-Type', 'text/html')])
@@ -1411,32 +1384,20 @@ class SegmentationServer:
             maskSaveDirectory = jobEntry['maskSaveDirectory']
             segSpec = jobEntry['segSpec']
             topNetworkName = segSpec.getNetworkPath('Top').name
-            botNetworkName = segSpec.getNetworkPath('Bot').name
             topOffset = segSpec.getYOffset('Top')
             topHeight = segSpec.getHeight('Top')
-            botHeight = segSpec.getHeight('Bot')
             topWidth = segSpec.getWidth('Top')
-            botWidth = segSpec.getWidth('Bot')
             if topHeight is None:
                 topHeightText = "Use network size"
             else:
                 topHeightText = str(topHeight)
-            if botHeight is None:
-                botHeightText = "Use network size"
-            else:
-                botHeightText = str(botHeight)
 
             if topWidth is None:
                 topWidthText = "Use network size"
             else:
                 topWidthText = str(topWidth)
-            if botWidth is None:
-                botWidthText = "Use network size"
-            else:
-                botWidthText = str(botWidth)
 
             topMaskPreviewSrc = '/maskPreview/{jobNum}/top'.format(jobNum=jobNum)
-            botMaskPreviewSrc = '/maskPreview/{jobNum}/bot'.format(jobNum=jobNum)
 
             skipExisting = jobEntry['skipExisting']
 
@@ -1466,16 +1427,12 @@ class SegmentationServer:
                 binaryThreshold=binaryThreshold,
                 maskSaveDirectory=maskSaveDirectory,
                 topNetworkName=topNetworkName,
-                botNetworkName=botNetworkName,
                 topOffset=topOffset,
                 topHeight=topHeightText,
-                botHeight=botHeightText,
                 topWidth=topWidthText,
-                botWidth=botWidthText,
                 generatePreview=generatePreview,
                 skipExisting=skipExisting,
                 topMaskPreviewSrc=topMaskPreviewSrc,
-                botMaskPreviewSrc=botMaskPreviewSrc,
                 autoReloadInterval=AUTO_RELOAD_INTERVAL,
                 hidePreview=hidePreview
             )
@@ -1566,7 +1523,6 @@ class SegmentationServer:
 
         if len(neuralNetworkList) > 0:
             topNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_TOP_NETWORK_NAME)
-            botNetworkOptionText = self.createOptionList(neuralNetworkList, defaultValue=DEFAULT_BOT_NETWORK_NAME)
             start_fn('200 OK', [('Content-Type', 'text/html')])
             return self.formatHTML(
                 environ,
@@ -1577,7 +1533,6 @@ class SegmentationServer:
                 input=postData,
                 remoteUser=username,
                 path=environ['PATH_INFO'],
-                nopts_bot=botNetworkOptionText,
                 nopts_top=topNetworkOptionText,
                 mopts=mountOptionsText
                 )
